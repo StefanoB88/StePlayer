@@ -1,0 +1,450 @@
+-- ============================================================
+-- StePlayer local database. Everything stays on device.
+-- Passwords are NEVER stored here (see CredentialStore).
+-- ============================================================
+
+CREATE TABLE source (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,                       -- XTREAM | M3U
+    url TEXT NOT NULL,                        -- Xtream base url or M3U url
+    username TEXT,
+    epg_url TEXT,
+    user_agent TEXT,
+    server_time_offset_sec INTEGER NOT NULL DEFAULT 0,
+    allowed_formats TEXT,                     -- comma separated (ts,m3u8,rtmp)
+    expires_at INTEGER,
+    max_connections INTEGER,
+    last_sync_at INTEGER,
+    last_epg_sync_at INTEGER,
+    created_at INTEGER NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE setting (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE category (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,                       -- LIVE | MOVIE | SERIES
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (source_id, type, id)
+);
+
+CREATE TABLE category_pref (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    id TEXT NOT NULL,
+    hidden INTEGER NOT NULL DEFAULT 0,
+    locked INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (source_id, type, id)
+);
+
+CREATE TABLE channel (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    num INTEGER,
+    name TEXT NOT NULL,
+    search_name TEXT NOT NULL,
+    logo TEXT,
+    category_id TEXT,
+    epg_id TEXT,
+    stream_url TEXT,                          -- only for M3U sources
+    archive_days INTEGER NOT NULL DEFAULT 0,
+    catchup_source TEXT,                      -- M3U catchup-source template
+    position INTEGER NOT NULL,
+    PRIMARY KEY (source_id, id)
+);
+CREATE INDEX channel_by_category ON channel(source_id, category_id, position);
+CREATE INDEX channel_by_epg ON channel(source_id, epg_id);
+
+CREATE TABLE movie (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    search_name TEXT NOT NULL,
+    poster TEXT,
+    category_id TEXT,
+    rating REAL,
+    year INTEGER,
+    extension TEXT,
+    stream_url TEXT,                          -- only for M3U sources
+    added_at INTEGER,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (source_id, id)
+);
+CREATE INDEX movie_by_category ON movie(source_id, category_id, position);
+CREATE INDEX movie_by_added ON movie(source_id, added_at);
+
+CREATE TABLE series (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    search_name TEXT NOT NULL,
+    cover TEXT,
+    category_id TEXT,
+    plot TEXT,
+    rating REAL,
+    year INTEGER,
+    genre TEXT,
+    last_modified INTEGER,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (source_id, id)
+);
+CREATE INDEX series_by_category ON series(source_id, category_id, position);
+CREATE INDEX series_by_modified ON series(source_id, last_modified);
+
+CREATE TABLE episode (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    series_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    season INTEGER NOT NULL,
+    number INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    plot TEXT,
+    image TEXT,
+    duration_sec INTEGER,
+    extension TEXT,
+    stream_url TEXT,                          -- only for M3U sources
+    PRIMARY KEY (source_id, id)
+);
+CREATE INDEX episode_by_series ON episode(source_id, series_id, season, number);
+
+CREATE TABLE epg_program (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    channel_epg_id TEXT NOT NULL,
+    start_at INTEGER NOT NULL,                -- epoch millis UTC
+    end_at INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT
+);
+CREATE INDEX epg_by_channel_time ON epg_program(source_id, channel_epg_id, start_at);
+
+CREATE TABLE favorite (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (source_id, type, item_id)
+);
+
+CREATE TABLE watch_progress (
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,                       -- LIVE | MOVIE | EPISODE
+    item_id TEXT NOT NULL,
+    parent_id TEXT,                           -- series id for episodes
+    title TEXT NOT NULL,
+    subtitle TEXT,
+    image TEXT,
+    position_ms INTEGER NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (source_id, type, item_id)
+);
+CREATE INDEX progress_by_updated ON watch_progress(source_id, updated_at);
+
+CREATE TABLE download (
+    id TEXT NOT NULL PRIMARY KEY,             -- "<sourceId>:<type>:<itemId>"
+    source_id INTEGER NOT NULL REFERENCES source(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,                       -- MOVIE | EPISODE
+    item_id TEXT NOT NULL,
+    parent_id TEXT,
+    title TEXT NOT NULL,
+    subtitle TEXT,
+    image TEXT,
+    extension TEXT,
+    status TEXT NOT NULL,                     -- QUEUED | RUNNING | PAUSED | COMPLETED | FAILED
+    file_path TEXT,
+    bytes_downloaded INTEGER NOT NULL DEFAULT 0,
+    total_bytes INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+-- ================= source =================
+insertSource:
+INSERT INTO source(name, type, url, username, epg_url, user_agent, created_at, position)
+VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM source));
+
+lastInsertedId:
+SELECT last_insert_rowid();
+
+updateSource:
+UPDATE source SET name = ?, url = ?, username = ?, epg_url = ?, user_agent = ? WHERE id = ?;
+
+updateSourceAccountInfo:
+UPDATE source SET server_time_offset_sec = ?, allowed_formats = ?, expires_at = ?, max_connections = ? WHERE id = ?;
+
+updateSourceEpgUrl:
+UPDATE source SET epg_url = ? WHERE id = ? AND (epg_url IS NULL OR epg_url = '');
+
+markSourceSynced:
+UPDATE source SET last_sync_at = ? WHERE id = ?;
+
+markEpgSynced:
+UPDATE source SET last_epg_sync_at = ? WHERE id = ?;
+
+deleteSource:
+DELETE FROM source WHERE id = ?;
+
+allSources:
+SELECT * FROM source ORDER BY position;
+
+sourceById:
+SELECT * FROM source WHERE id = ?;
+
+-- ================= settings =================
+putSetting:
+INSERT OR REPLACE INTO setting(key, value) VALUES (?, ?);
+
+getSetting:
+SELECT value FROM setting WHERE key = ?;
+
+deleteSetting:
+DELETE FROM setting WHERE key = ?;
+
+-- ================= categories =================
+insertCategory:
+INSERT OR REPLACE INTO category(source_id, type, id, name, position) VALUES (?, ?, ?, ?, ?);
+
+deleteCategories:
+DELETE FROM category WHERE source_id = ? AND type = ?;
+
+visibleCategories:
+SELECT c.id, c.name, COALESCE(p.locked, 0) AS locked
+FROM category c
+LEFT JOIN category_pref p ON p.source_id = c.source_id AND p.type = c.type AND p.id = c.id
+WHERE c.source_id = ? AND c.type = ? AND COALESCE(p.hidden, 0) = 0
+ORDER BY c.position;
+
+allCategoriesWithPrefs:
+SELECT c.id, c.name, COALESCE(p.hidden, 0) AS hidden, COALESCE(p.locked, 0) AS locked
+FROM category c
+LEFT JOIN category_pref p ON p.source_id = c.source_id AND p.type = c.type AND p.id = c.id
+WHERE c.source_id = ? AND c.type = ?
+ORDER BY c.position;
+
+setCategoryPref:
+INSERT OR REPLACE INTO category_pref(source_id, type, id, hidden, locked) VALUES (?, ?, ?, ?, ?);
+
+-- ================= channels =================
+insertChannel:
+INSERT OR REPLACE INTO channel(source_id, id, num, name, search_name, logo, category_id, epg_id, stream_url, archive_days, catchup_source, position)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteChannels:
+DELETE FROM channel WHERE source_id = ?;
+
+channelsByCategory:
+SELECT * FROM channel WHERE source_id = ? AND category_id = ? ORDER BY position;
+
+allChannels:
+SELECT * FROM channel WHERE source_id = ? ORDER BY position;
+
+channelById:
+SELECT * FROM channel WHERE source_id = ? AND id = ?;
+
+searchChannels:
+SELECT * FROM channel WHERE source_id = ? AND search_name LIKE ('%' || ? || '%') ORDER BY position LIMIT ?;
+
+favoriteChannels:
+SELECT ch.* FROM channel ch
+JOIN favorite f ON f.source_id = ch.source_id AND f.type = 'LIVE' AND f.item_id = ch.id
+WHERE ch.source_id = ? ORDER BY f.created_at DESC;
+
+-- ================= movies =================
+insertMovie:
+INSERT OR REPLACE INTO movie(source_id, id, name, search_name, poster, category_id, rating, year, extension, stream_url, added_at, position)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteMovies:
+DELETE FROM movie WHERE source_id = ?;
+
+moviesByCategory:
+SELECT * FROM movie WHERE source_id = ? AND category_id = ? ORDER BY position LIMIT ? OFFSET ?;
+
+allMovies:
+SELECT * FROM movie WHERE source_id = ? ORDER BY position LIMIT ? OFFSET ?;
+
+recentMovies:
+SELECT * FROM movie WHERE source_id = ? ORDER BY added_at DESC LIMIT ?;
+
+movieById:
+SELECT * FROM movie WHERE source_id = ? AND id = ?;
+
+searchMovies:
+SELECT * FROM movie WHERE source_id = ? AND search_name LIKE ('%' || ? || '%') ORDER BY position LIMIT ?;
+
+favoriteMovies:
+SELECT m.* FROM movie m
+JOIN favorite f ON f.source_id = m.source_id AND f.type = 'MOVIE' AND f.item_id = m.id
+WHERE m.source_id = ? ORDER BY f.created_at DESC;
+
+-- ================= series =================
+insertSeries:
+INSERT OR REPLACE INTO series(source_id, id, name, search_name, cover, category_id, plot, rating, year, genre, last_modified, position)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteSeries:
+DELETE FROM series WHERE source_id = ?;
+
+seriesByCategory:
+SELECT * FROM series WHERE source_id = ? AND category_id = ? ORDER BY position LIMIT ? OFFSET ?;
+
+allSeries:
+SELECT * FROM series WHERE source_id = ? ORDER BY position LIMIT ? OFFSET ?;
+
+recentSeries:
+SELECT * FROM series WHERE source_id = ? ORDER BY last_modified DESC LIMIT ?;
+
+seriesById:
+SELECT * FROM series WHERE source_id = ? AND id = ?;
+
+searchSeries:
+SELECT * FROM series WHERE source_id = ? AND search_name LIKE ('%' || ? || '%') ORDER BY position LIMIT ?;
+
+favoriteSeries:
+SELECT s.* FROM series s
+JOIN favorite f ON f.source_id = s.source_id AND f.type = 'SERIES' AND f.item_id = s.id
+WHERE s.source_id = ? ORDER BY f.created_at DESC;
+
+-- ================= episodes =================
+insertEpisode:
+INSERT OR REPLACE INTO episode(source_id, series_id, id, season, number, title, plot, image, duration_sec, extension, stream_url)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteEpisodesOfSeries:
+DELETE FROM episode WHERE source_id = ? AND series_id = ?;
+
+deleteEpisodes:
+DELETE FROM episode WHERE source_id = ?;
+
+episodesOfSeries:
+SELECT * FROM episode WHERE source_id = ? AND series_id = ? ORDER BY season, number;
+
+episodeById:
+SELECT * FROM episode WHERE source_id = ? AND id = ?;
+
+-- ================= epg =================
+insertProgram:
+INSERT INTO epg_program(source_id, channel_epg_id, start_at, end_at, title, description) VALUES (?, ?, ?, ?, ?, ?);
+
+deletePrograms:
+DELETE FROM epg_program WHERE source_id = ?;
+
+deleteProgramsOfChannel:
+DELETE FROM epg_program WHERE source_id = ? AND channel_epg_id = ?;
+
+deleteProgramsBefore:
+DELETE FROM epg_program WHERE source_id = ? AND end_at < ?;
+
+programsForChannel:
+SELECT * FROM epg_program
+WHERE source_id = ? AND channel_epg_id = ? AND end_at > ? AND start_at < ?
+ORDER BY start_at;
+
+-- Channel lists and the grid guide never show descriptions: leaving them out keeps the
+-- result small (tens of thousands of rows for "Tutti").
+programsForChannels:
+SELECT channel_epg_id, start_at, end_at, title FROM epg_program
+WHERE source_id = ? AND channel_epg_id IN ? AND end_at > ? AND start_at < ?
+ORDER BY channel_epg_id, start_at;
+
+currentPrograms:
+SELECT * FROM epg_program
+WHERE source_id = ? AND channel_epg_id IN ? AND start_at <= ? AND end_at > ?;
+
+-- ================= favorites =================
+addFavorite:
+INSERT OR REPLACE INTO favorite(source_id, type, item_id, created_at) VALUES (?, ?, ?, ?);
+
+removeFavorite:
+DELETE FROM favorite WHERE source_id = ? AND type = ? AND item_id = ?;
+
+isFavorite:
+SELECT COUNT(*) FROM favorite WHERE source_id = ? AND type = ? AND item_id = ?;
+
+favoriteIds:
+SELECT item_id FROM favorite WHERE source_id = ? AND type = ?;
+
+-- ================= progress =================
+upsertProgress:
+INSERT OR REPLACE INTO watch_progress(source_id, type, item_id, parent_id, title, subtitle, image, position_ms, duration_ms, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+progressFor:
+SELECT * FROM watch_progress WHERE source_id = ? AND type = ? AND item_id = ?;
+
+progressOfSeries:
+SELECT * FROM watch_progress WHERE source_id = ? AND type = 'EPISODE' AND parent_id = ?;
+
+continueWatching:
+SELECT * FROM watch_progress
+WHERE source_id = ? AND type IN ('MOVIE', 'EPISODE')
+  AND position_ms > 30000 AND (duration_ms = 0 OR position_ms < duration_ms * 0.95)
+ORDER BY updated_at DESC LIMIT ?;
+
+recentChannels:
+SELECT * FROM watch_progress WHERE source_id = ? AND type = 'LIVE' ORDER BY updated_at DESC LIMIT ?;
+
+deleteProgress:
+DELETE FROM watch_progress WHERE source_id = ? AND type = ? AND item_id = ?;
+
+-- ================= downloads =================
+insertDownload:
+INSERT OR REPLACE INTO download(id, source_id, type, item_id, parent_id, title, subtitle, image, extension, status, file_path, bytes_downloaded, total_bytes, error, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateDownloadProgress:
+UPDATE download SET status = ?, bytes_downloaded = ?, total_bytes = ?, updated_at = ? WHERE id = ?;
+
+updateDownloadStatus:
+UPDATE download SET status = ?, error = ?, updated_at = ? WHERE id = ?;
+
+completeDownload:
+UPDATE download SET status = 'COMPLETED', file_path = ?, bytes_downloaded = total_bytes, error = NULL, updated_at = ? WHERE id = ?;
+
+setDownloadFile:
+UPDATE download SET file_path = ? WHERE id = ?;
+
+deleteDownload:
+DELETE FROM download WHERE id = ?;
+
+allDownloads:
+SELECT * FROM download ORDER BY created_at DESC;
+
+downloadById:
+SELECT * FROM download WHERE id = ?;
+
+downloadsByStatus:
+SELECT * FROM download WHERE status IN ? ORDER BY created_at;
+
+-- ================= smart search support =================
+-- The full-text indexes themselves (contentless FTS4, one per source) are managed in code
+-- by SearchIndex, because their names are per-source. These queries hydrate the hits.
+
+channelsByRowids:
+SELECT * FROM channel WHERE rowid IN ?;
+
+moviesByRowids:
+SELECT * FROM movie WHERE rowid IN ?;
+
+seriesByRowids:
+SELECT * FROM series WHERE rowid IN ?;
+
+programsByRowids:
+SELECT * FROM epg_program WHERE rowid IN ?;
+
+channelsByEpgIds:
+SELECT * FROM channel WHERE source_id = ? AND epg_id IN ? ORDER BY position;
+
+channelsByNumber:
+SELECT * FROM channel WHERE source_id = ? AND num = ? ORDER BY position;
+
+firstChannelByNumber:
+SELECT * FROM channel WHERE source_id = ? AND num = ? ORDER BY position LIMIT 1;
