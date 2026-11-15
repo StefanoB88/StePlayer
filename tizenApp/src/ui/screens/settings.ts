@@ -131,6 +131,7 @@ export function settingsScreen(): Screen {
       settingRow('info', DISCLAIMER),
       settingRow('lock', 'Privacy', 'StePlayer non raccoglie alcun dato. Liste, preferiti e cronologia restano solo su questo televisore.'),
       settingRow('info', 'StePlayer non è affiliato con alcun provider e non fornisce contenuti, liste o abbonamenti.'),
+      settingRow('info', 'Informativa privacy e termini d\'uso', 'stefanob88.github.io/steplayerwebsite'),
     ]));
     column.appendChild(sectionBox('Informazioni', [settingRow('info', 'StePlayer', `Versione ${VERSION}`)]));
 

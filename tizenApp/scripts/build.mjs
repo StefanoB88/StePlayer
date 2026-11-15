@@ -18,7 +18,7 @@ const ICONS = [
   'audiotrack', 'closed_caption', 'aspect_ratio', 'tune', 'speed', 'calendar_view_week', 'swap_horiz', 'close',
   'wifi_off', 'skip_next', 'replay', 'add', 'remove', 'check', 'radio_button_checked', 'radio_button_unchecked',
   'edit', 'delete', 'visibility', 'visibility_off', 'error_outline', 'bedtime', 'video_library', 'tv',
-  'lock', 'expand_more', 'chevron_right', 'keyboard', 'check_circle', 'cloud_sync',
+  'lock', 'expand_more', 'chevron_right', 'keyboard', 'check_circle', 'cloud_sync', 'notes',
 ];
 
 function generateIcons() {

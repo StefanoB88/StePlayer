@@ -5,7 +5,6 @@ import { h, icon } from './dom.ts';
 import { ElementsZone, FocusScope, type Zone } from './focus.ts';
 import type { KeyPress } from './keys.ts';
 import { exitApp } from './keys.ts';
-import { confirmDialog } from './components.ts';
 import { actions } from './actions.ts';
 import { homeTab } from './screens/home.ts';
 import { liveTab } from './screens/live.ts';
@@ -132,14 +131,19 @@ export class Shell implements Screen {
     if (this.scope.current !== this.railZone) {
       const tab = this.currentTab();
       if (tab.onBack && tab.onBack()) return true;
+    }
+    // Samsung QA: Return on the main page goes straight back to Smart Hub (no confirmation pop-up).
+    if (this.selected === 'home') { exitApp(); return true; }
+    if (this.scope.current !== this.railZone) {
       // Back from the content goes to the rail (TV convention), on the selected tab.
       const item = this.items.get(this.selected);
       this.scope.focus(this.railZone);
       if (item) this.railZone.focusElement(item);
       return true;
     }
-    if (this.selected !== 'home') { this.select('home', false); const item = this.items.get('home'); if (item) this.railZone.focusElement(item); return true; }
-    confirmDialog('Uscire da StePlayer?', '', 'Esci', () => exitApp());
+    this.select('home', false);
+    const item = this.items.get('home');
+    if (item) this.railZone.focusElement(item);
     return true;
   }
 

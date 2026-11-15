@@ -221,6 +221,25 @@ export function confirmDialog(title: string, message: string, confirmLabel: stri
   return screen;
 }
 
+/**
+ * Long text (full plot, cast…) in a dialog: Up/Down scroll it, with a visible scroll bar (Samsung QA #21:
+ * text longer than its box must be scrollable). Jumps, no smooth scrolling (software rasterised TVs).
+ */
+export function textDialog(title: string, paragraphs: (string | null | undefined)[]): void {
+  const body = h('div', { class: 'dbody textscroll t-body-l' });
+  paragraphs.filter((t): t is string => !!t && !!t.trim()).forEach((t) => body.appendChild(h('p', null, t)));
+  const close = h('div', { class: 'btn s104', 'data-focus': true, 'data-default': true }, 'Chiudi');
+  close.addEventListener('click', () => app().closeDialog(screen));
+  const box = h('div', { class: 'dialog wide' }, h('div', { class: 'dtitle t-headline-s' }, title), body, h('div', { class: 'dactions' }, close));
+  const screen = dialogScreen(box, (sc) => { sc.add(new ElementsZone(box.querySelector('.dactions') as HTMLElement)); });
+  screen.onKey = (k: KeyPress) => {
+    if (k.key !== 'up' && k.key !== 'down') return false;
+    body.scrollTop += k.key === 'down' ? 160 : -160;
+    return true;
+  };
+  app().openDialog(screen);
+}
+
 /** −/+ stepper (Android DelayDialog). */
 export function stepperDialog(title: string, value: number, step: number, format: (v: number) => string, onChange: (v: number) => void): void {
   let v = value;

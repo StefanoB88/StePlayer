@@ -9,6 +9,8 @@ Materiali per App Store, Google Play e Samsung Seller Office. Niente di questa c
 - `app-store-review-notes.md` — testo per le App Review Notes (Apple).
 - `google-play-listing.md` — titolo, descrizione breve e completa senza marchi di terzi.
 - `samsung-test-information.md` — campo "Test Information" del Seller Office.
+- `samsung-app-description.md` — contenuto per il modello "App Description" di Samsung.
+- `samsung/` — immagini per il Seller Office (icona, logo, sfondi, screenshot), vedi `samsung/README.md`.
 - `privacy-policy.md`, `terms.md` — riassunti; i testi completi (IT + EN) sono pubblicati su
   https://stefanob88.github.io/steplayerwebsite/privacy.html e https://stefanob88.github.io/steplayerwebsite/terms.html. Contatto per privacy e segnalazioni: `stehelp@gmail.com`.
 
@@ -27,5 +29,5 @@ sfocati. Nomi di categoria neutri ("Demo HLS", "Film aperti").
 - Nessun SDK di statistiche, pubblicità o tracciamento. User-Agent onesto ("StePlayer/…").
 - Nessun pagamento, prezzo o link di acquisto in nessuna app.
 - Avviso legale obbligatorio al primo avvio (3 punti) con "Ho capito e accetto", attivo solo dopo la spunta.
-- TV Samsung: tasto RETURN gestito (Home → conferma di uscita), salvaschermo disattivato solo durante la
+- TV Samsung: tasto RETURN gestito (Home → uscita diretta a Smart Hub, voce 13 della checklist), salvaschermo disattivato solo durante la
   riproduzione, avviso quando la rete è assente, errori di rete con nuovi tentativi automatici.

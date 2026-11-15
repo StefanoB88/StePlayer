@@ -14,7 +14,7 @@ export function backdrop(image: string | null, title: string, height: number): H
 export function metaLine(label: string, value: string | null | undefined): HTMLElement | null {
   if (!value || !value.trim()) return null;
   return h('div', { class: 'row', style: 'align-items:flex-start;padding:6px 0' },
-    h('span', { class: 't-body-m c2', style: 'white-space:nowrap' }, `${label}  `),
+    h('span', { class: 't-body-m c2', style: 'white-space:nowrap;margin-right:16px' }, label),
     h('span', { class: 't-body-m clamp3' }, value));
 }
 

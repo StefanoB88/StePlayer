@@ -15,24 +15,27 @@ const BIND = process.env.BIND || '127.0.0.1';
 const HOST = process.env.PUBLIC || `http://127.0.0.1:${port}`;
 const SCALE = Number(process.env.SCALE || 1);
 const REAL_ART = process.env.REAL_ART === '1';
+// NO_EXPIRY=1: no expiry date (store screenshots without the expiry notice).
+const NO_EXPIRY = process.env.NO_EXPIRY === '1';
 const MEDIA = join(root, 'dev/media/sample.mp4');
 
 const CATS = [
   { id: '1', name: 'Generalisti' }, { id: '2', name: 'Notizie' }, { id: '3', name: 'Sport' },
 ];
-const CHANNEL_NAMES = ['Canale Uno', 'Canale Due', 'Rete Tre', 'Telenova', 'Onda Blu', 'Stella TV', 'Canale Mare', 'Rete Sole',
-  'Notizie 24', 'Info Live', 'Giornale TV', 'Mondo News', 'Sport Uno', 'Sport Due', 'Arena TV', 'Motori Live'];
+// Invented names only (store screenshots are taken from this catalogue): no real channel, film or series titles.
+const CHANNEL_NAMES = ['Zefiro', 'Ninfea', 'Lumen Uno', 'Corallo', 'Quarzo', 'Vespero', 'Brezza', 'Altamira',
+  'Notiziario Uno', 'Notiziario Due', 'Cronache Demo', 'Dispaccio', 'Stadio Demo', 'Pista Uno', 'Traguardo', 'Motore Zero'];
 const channels = Array.from({ length: 40 * SCALE }, (_, i) => ({
   id: String(100 + i), num: i + 1, name: i < CHANNEL_NAMES.length ? CHANNEL_NAMES[i] : `Canale ${i + 1}`,
   cat: CATS[i < 8 ? 0 : i < 12 ? 1 : i < 16 ? 2 : i % 3].id, epg: `ch${i + 1}.esempio`, archive: i % 4 === 0 ? 3 : 0,
 }));
-const MOVIE_TITLES = ['Il viaggio lungo', 'Notte in città', 'La casa sul lago', 'Ultima corsa', 'Il segreto del faro', 'Vento del nord',
-  'Sotto le stelle', 'Il ritorno', 'Colori d\'autunno', 'La strada bianca', 'Ombre sul porto', 'Il giardino segreto'];
+const MOVIE_TITLES = ['Le lanterne di Vetrano', 'Nebbia su Borgo Asterio', 'Il faro di Punta Lirea', 'Ottobre a Calvisella', 'La corsa di Elvira Mantis',
+  'Sale e vento a Oriela', 'Il cartografo di Senara', 'Notturno a Valdibrina', 'Le isole Ferandi', 'Il ponte di Marzolano', 'Estate a Coralba', 'I giardini di Ostrena'];
 const movies = Array.from({ length: 36 * SCALE }, (_, i) => ({
   id: String(500 + i), name: i < MOVIE_TITLES.length ? MOVIE_TITLES[i] : `Film di prova ${i + 1}`, cat: String(10 + (i % 3)),
   year: 2015 + (i % 10), rating: 5 + (i % 5), added: Math.floor(Date.now() / 1000) - i * 86400,
 }));
-const SERIES_TITLES = ['Vita di quartiere', 'Il commissario Neri', 'Oltre il confine', 'La famiglia Rossi', 'Codice blu', 'Isola verde'];
+const SERIES_TITLES = ['I giorni di Valmora', 'Oltre Cimarosso', 'La bottega di Ondina', 'Codice Azzurrite', 'Isola Terenzia', 'Le stagioni di Ferla'];
 const series = Array.from({ length: 12 * SCALE }, (_, i) => ({
   id: String(800 + i), name: i < SERIES_TITLES.length ? SERIES_TITLES[i] : `Serie di prova ${i + 1}`, cat: String(20 + (i % 2)),
   year: 2018 + (i % 6), rating: 6 + (i % 4),
@@ -107,7 +110,7 @@ function xtream(q) {
   if (q.get('username') !== 'demo' || q.get('password') !== 'demo') return { user_info: { auth: 0 } };
   switch (action) {
     case null: case '': return {
-      user_info: { auth: 1, username: 'demo', status: 'Active', exp_date: String(now + 2 * 86400), max_connections: '1', active_cons: '0', is_trial: '0', allowed_output_formats: ['m3u8', 'ts'] },
+      user_info: { auth: 1, username: 'demo', status: 'Active', exp_date: NO_EXPIRY ? null : String(now + 2 * 86400), max_connections: '1', active_cons: '0', is_trial: '0', allowed_output_formats: ['m3u8', 'ts'] },
       server_info: { url: '127.0.0.1', port: String(port), timestamp_now: now, timezone: 'Europe/Rome' },
     };
     case 'get_live_categories': return CATS.map((c) => ({ category_id: c.id, category_name: c.name, parent_id: 0 }));

@@ -3,7 +3,7 @@ import type { MovieDetail, WatchProgress } from '../../core/api.ts';
 import { app, type Screen } from '../app.ts';
 import { h, clear, append } from '../dom.ts';
 import { ElementsZone, FocusScope } from '../focus.ts';
-import { emptyState, loadingBox, primaryButton, progressBar, secondaryButton } from '../components.ts';
+import { emptyState, loadingBox, primaryButton, progressBar, secondaryButton, textDialog } from '../components.ts';
 import { Format } from '../format.ts';
 import { actions } from '../actions.ts';
 import { detailHero, detailTopBar, metaLine } from './detailCommon.ts';
@@ -26,6 +26,8 @@ export function movieScreen(sourceId: number, id: string): Screen {
     if (!d) return;
     const m = d.movie;
     const keepFocus = scope.current === buttonsZone;
+    // Re-rendering (e.g. after toggling the favourite) keeps the focus on the same button, not on the first one.
+    const keepIndex = keepFocus && buttonsZone ? buttonsZone.items().indexOf(buttonsZone.current as HTMLElement) : -1;
     clear(body);
     topBar.setTitle(m.name);
     const meta = [m.year ? String(m.year) : null, Format.minutes(d.durationSec),
@@ -50,6 +52,11 @@ export function movieScreen(sourceId: number, id: string): Screen {
       buttons.appendChild(primaryButton('Riproduci', () => actions.playMovie(m, 0), 'play_arrow'));
     }
     buttons.appendChild(secondaryButton('', () => toggleFavorite(), favorite ? 'favorite' : 'favorite_border', { tint: favorite ? 'var(--live)' : undefined }));
+    if (d.plot || d.cast) {
+      buttons.appendChild(secondaryButton('Trama completa', () => textDialog(m.name, [
+        d.plot, d.genre ? `Genere: ${d.genre}` : null, d.director ? `Regia: ${d.director}` : null, d.cast ? `Cast: ${d.cast}` : null,
+      ]), 'notes'));
+    }
     col.appendChild(buttons);
     if (d.plot) col.appendChild(h('div', { class: 't-body-l', style: 'display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;width:92%;margin:8px 0 20px;color:rgba(245,247,250,0.9)' }, d.plot));
     append(col, [metaLine('Genere', d.genre), metaLine('Regia', d.director), metaLine('Cast', d.cast)]);
@@ -57,7 +64,11 @@ export function movieScreen(sourceId: number, id: string): Screen {
     buttonsZone = new ElementsZone(buttons, { only: 'x' });
     buttonsZone.neighbors = { up: topBar.zone };
     scope.zones = [topBar.zone, buttonsZone];
-    if (keepFocus || !scope.current) scope.focus(buttonsZone);
+    if (keepFocus || !scope.current) {
+      scope.focus(buttonsZone);
+      const again = keepIndex >= 0 ? buttonsZone.items()[keepIndex] : null;
+      if (again) buttonsZone.focusElement(again);
+    }
   }
 
   async function toggleFavorite() {

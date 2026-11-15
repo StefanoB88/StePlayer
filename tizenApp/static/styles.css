@@ -168,6 +168,12 @@ body.video-mode #avplayer { display: block; }
 .dialog { background: var(--surface2); border-radius: 56px; padding: 48px; width: 1000px; max-height: 920px; display: flex; flex-direction: column; }
 .dialog .dtitle { margin-bottom: 32px; }
 .dialog .dbody { overflow: hidden; flex: 1 1 auto; }
+.dialog.wide { width: 1400px; }
+.dialog .textscroll { overflow-y: scroll; max-height: 640px; padding-right: 32px; color: rgba(245, 247, 250, 0.9); }
+.dialog .textscroll p { margin: 0 0 20px; }
+.textscroll::-webkit-scrollbar { width: 10px; }
+.textscroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.08); border-radius: 999px; }
+.textscroll::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 999px; }
 .dialog .dactions { display: flex; flex-direction: row; justify-content: flex-end; margin-top: 32px; }
 .dialog .dactions > * { margin-left: 16px; }
 .option { display: flex; align-items: center; padding: 16px 16px; border-radius: 20px; font-size: 32px; line-height: 48px; }

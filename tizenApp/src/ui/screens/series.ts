@@ -4,7 +4,7 @@ import type { Episode, Series, SeriesDetail, WatchProgress } from '../../core/ap
 import { app, type Screen } from '../app.ts';
 import { h, clear, append } from '../dom.ts';
 import { ElementsZone, FocusScope, ensureVisible, getScroll, makeTrack, resetScroll } from '../focus.ts';
-import { artImage, chip, emptyState, loadingBox, primaryButton, progressBar, secondaryButton } from '../components.ts';
+import { artImage, chip, emptyState, loadingBox, primaryButton, progressBar, secondaryButton, textDialog } from '../components.ts';
 import { Format } from '../format.ts';
 import { actions } from '../actions.ts';
 import { detailHero, detailTopBar, metaLine } from './detailCommon.ts';
@@ -71,6 +71,12 @@ export function seriesScreen(sourceId: number, id: string): Screen {
       buttons.appendChild(primaryButton(pos > 30_000 ? `Riprendi da ${Format.duration(pos)}  ·  ${label}` : `Riproduci  ·  ${label}`, () => play(ep, pos), 'play_arrow'));
     }
     buttons.appendChild(secondaryButton('', () => toggleFavorite(), favorite ? 'favorite' : 'favorite_border', { tint: favorite ? 'var(--live)' : undefined }));
+    if (s.plot || (detail && detail.cast)) {
+      buttons.appendChild(secondaryButton('Trama completa', () => textDialog(s.name, [
+        s.plot, s.genre ? `Genere: ${s.genre}` : null, detail && detail.director ? `Regia: ${detail.director}` : null,
+        detail && detail.cast ? `Cast: ${detail.cast}` : null,
+      ]), 'notes'));
+    }
     col.appendChild(buttons);
     if (s.plot) col.appendChild(h('div', { class: 't-body-l', style: 'display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;width:92%;margin:8px 0 16px;color:rgba(245,247,250,0.9)' }, s.plot));
     append(col, [metaLine('Cast', detail && detail.cast), metaLine('Regia', detail && detail.director)]);

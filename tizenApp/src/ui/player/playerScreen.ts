@@ -956,7 +956,13 @@ export function playerScreen(initial: PlayRequest): Screen {
         case 'chUp': if (isLive()) zap(1); return true;
         case 'chDown': if (isLive()) zap(-1); return true;
         case 'info': if (isLive()) { if (controlsVisible) hideControls(); else showControls(); } else showControls(); return true;
-        case 'playPause': case 'play': case 'pause': if (!failure && !retrying) { togglePlay(); if (!isLive()) showControls(); } return true;
+        case 'playPause': case 'play': case 'pause':
+          if (!failure && !retrying) {
+            // MediaPlay only resumes, MediaPause only pauses; PlayPause toggles.
+            if (k.key === 'playPause' || (k.key === 'play') !== engine.isPlaying) togglePlay();
+            if (!isLive()) showControls();
+          }
+          return true;
         case 'stop': close(); return true;
         case 'ff': if (canSeek()) { seekBy(30_000); showControls(); } return true;
         case 'rw': if (canSeek()) { seekBy(-30_000); showControls(); } return true;
