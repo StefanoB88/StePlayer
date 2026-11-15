@@ -34,7 +34,7 @@ data class SubtitleStyle(
 data class PlayerSettings(
     /** "Stai ancora guardando?" after this many hours without interaction. 0 = never. */
     val stillWatchingAfterHours: Int = 4,
-    /** Default: large buffer (fewer stutters on IPTV servers; slightly slower channel start). */
+    /** Default: large buffer (fewer stutters on streaming servers; slightly slower channel start). */
     val bufferMode: BufferMode = BufferMode.LARGE,
     /** ISO 639-1 codes in priority order. Empty = follow the device languages. */
     val preferredAudioLanguages: List<String> = emptyList(),

@@ -5,7 +5,7 @@ import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpTimeout
 
-/** Shared HTTP configuration: generous timeouts for slow IPTV servers, retry on flaky networks. */
+/** Shared HTTP configuration: generous timeouts for slow streaming servers, retry on flaky networks. */
 fun HttpClientConfig<*>.stePlayerDefaults() {
     expectSuccess = false
     followRedirects = true

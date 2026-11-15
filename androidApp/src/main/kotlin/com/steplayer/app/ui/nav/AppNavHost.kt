@@ -102,6 +102,7 @@ fun AppNavHost(startDestination: String, pendingRoute: String? = null, onRouteHa
             com.steplayer.app.ui.settings.ConnectionTestScreen(entry.arguments!!.getLong("sourceId"), actions)
         }
         composable(Routes.SUBTITLES) { com.steplayer.app.ui.settings.SubtitleSettingsScreen(actions) }
+        composable(Routes.SEND_TV) { com.steplayer.app.ui.settings.SendToTvScreen(actions) }
         composable(
             Routes.CATEGORIES,
             arguments = listOf(navArgument("sourceId") { type = NavType.LongType }, navArgument("type") { type = NavType.StringType }),

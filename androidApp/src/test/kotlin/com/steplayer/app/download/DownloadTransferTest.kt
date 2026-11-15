@@ -67,7 +67,7 @@ class DownloadTransferTest {
         DownloadTransfer(client, server.url("/movie.mkv").toString(), mapOf("User-Agent" to "Test"), file, minSegmentBytes = 1024 * 1024)
 
     @Test fun parallelSegmentsAreCorrectAndMuchFaster() = runBlocking {
-        bytesPer100ms = 256 * 1024 // ~2.5 MB/s per connection, like a throttling IPTV server
+        bytesPer100ms = 256 * 1024 // ~2.5 MB/s per connection, like a throttling streaming server
         val single = File(tmp.root, "single.mkv")
         val t1 = System.nanoTime(); transfer(single).run(1) { _, _ -> }; val oneConn = System.nanoTime() - t1
         val multi = File(tmp.root, "multi.mkv")

@@ -36,6 +36,19 @@ final class AppModel {
     enum Phase: Equatable { case launching, onboarding, syncing, ready }
 
     let core: StePlayerCore
+
+    /// Lists, favourites and history stay on this device only (privacy policy): the SQLite folder
+    /// (SQLiter's default "Library/Application Support/databases") is kept out of iCloud/computer backups.
+    /// Secrets are already Keychain "ThisDeviceOnly", downloads are excluded where they are created.
+    private static func excludeDatabaseFromBackup() {
+        let fm = FileManager.default
+        guard let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+        var dir = support.appendingPathComponent("databases", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? dir.setResourceValues(values)
+    }
     let downloadsDirectory: String
 
     var phase: Phase = .launching
@@ -69,6 +82,7 @@ final class AppModel {
         let isTV = false
         let ua = "StePlayer/1.0 (iOS)"
         #endif
+        Self.excludeDatabaseFromBackup()
         let platform = ApplePlatform(credentialStore: KeychainCredentialStore(), defaultUserAgent: ua, useCachesForDownloads: isTV)
         downloadsDirectory = platform.downloadsDirectory
         core = StePlayerCore(platform: platform)
@@ -124,6 +138,8 @@ final class AppModel {
                     }
                 case "conntest":
                     path = [.connectionTest(sourceId: id)]
+                case "sendtv":
+                    path = [.sendToTv]
                 default:
                     path = [.guide(sourceId: id, categoryId: "__all__")]
                 }
@@ -132,6 +148,18 @@ final class AppModel {
                 while phase != .ready { try? await Task.sleep(nanoseconds: 300_000_000) }
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if let id = active?.id { await syncNow(id, blocking: false) }
+            }
+            // `STEPLAYER_DEMO_AUTOPLAY_MOVIE=<n>` plays the n-th film (0-based): engine routing checks.
+            if let n = env["STEPLAYER_DEMO_AUTOPLAY_MOVIE"].flatMap(Int64.init) {
+                while phase != .ready { try? await Task.sleep(nanoseconds: 300_000_000) }
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                guard let id = active?.id else { return }
+                demoSubscription = observeList(core.catalog.movies(sourceId: id, categoryId: "__all__", limit: 1, offset: n), as: Movie.self) { [weak self] l in
+                    guard let self, let m = l.first, self.demoSubscription != nil else { return }
+                    self.demoSubscription = nil
+                    self.play(.movie(m))
+                }
+                return
             }
             guard env["STEPLAYER_DEMO_AUTOPLAY"] == "1" else { return }
             while phase != .ready { try? await Task.sleep(nanoseconds: 300_000_000) }

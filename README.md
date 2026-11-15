@@ -1,7 +1,7 @@
 # StePlayer
 
-Lettore IPTV nativo per **Android (telefono, tablet, Android TV / Fire TV)** e **iOS / iPadOS / tvOS**.
-Supporta il **login tramite API Xtream** e **liste M3U/M3U8**, con EPG, catch-up, preferiti, "continua a guardare",
+Lettore multimediale nativo (liste M3U/HLS) per **Android (telefono, tablet, Android TV / Fire TV)** e **iOS / iPadOS / tvOS**.
+Supporta l'**accesso al server** (login con indirizzo, username e password) e le **liste M3U/M3U8**, con EPG, catch-up, preferiti, "continua a guardare",
 download di film ed episodi, Chromecast (Android) e AirPlay (Apple).
 
 > StePlayer è solo un lettore: non fornisce, ospita né vende contenuti. Gli utenti inseriscono
@@ -31,7 +31,7 @@ StePlayer/
 | Logica, rete, DB | modulo `shared` (Ktor, SQLDelight, kotlinx.serialization) | lo stesso modulo, come framework `Shared` |
 
 ### Prestazioni
-- Le liste Xtream (anche 50k+ film) vengono scaricate in parallelo e salvate in un'unica transazione per sezione.
+- I cataloghi dei server (anche 50k+ film) vengono scaricate in parallelo e salvate in un'unica transazione per sezione.
 - M3U ed EPG vengono letti **in streaming**: niente file interi in memoria, anche su box TV economici.
 - L'EPG salva solo i programmi dei canali presenti nella lista, in una finestra di −7/+7 giorni.
 - La ricerca globale usa indici full-text SQLite (FTS4 senza copia del testo, uno per lista).
@@ -54,10 +54,10 @@ i canali con "Napoli" nel nome e i film e le serie ambientati a Napoli.
   L'unica richiesta verso terzi è facoltativa e parte solo se l'utente avvia "Test connessione":
   un download anonimo dal server di test pubblico di Cloudflare, per confrontare la velocità
   della rete di casa con quella del provider (nessun dato personale inviato).
-- Le password Xtream e gli URL M3U (che spesso contengono token) **non** finiscono nel database:
+- Le password dei server e gli URL M3U (che spesso contengono token) **non** finiscono nel database:
   restano nel Keystore o nel Keychain. Gli URL di riproduzione vengono costruiti al momento.
 - Backup cloud disattivato per i dati sensibili. Gli URL non vengono mai scritti nei log.
-- Molti server IPTV usano solo `http`: l'app consente il traffico in chiaro (Android
+- Molti server di streaming usano solo `http`: l'app consente il traffico in chiaro (Android
   `network_security_config`, iOS ATS). Su App Store va fornita una giustificazione in revisione.
 
 ## Build
@@ -80,5 +80,5 @@ cd iosApp && ./scripts/fetch_vlckit.sh && xcodegen && open StePlayer.xcodeproj
   (es. stream di test pubblici o Big Buck Bunny).
 - Descrizione dello store: "lettore multimediale per le tue liste". Evita riferimenti a canali o
   contenuti a pagamento.
-- Apple (linea guida 5.2.3) e Google sono severi con le app IPTV: disclaimer ben visibile al primo avvio
+- Apple (linea guida 5.2.3) e Google sono severi con i lettori di liste: disclaimer ben visibile al primo avvio
   (già presente) e nessuna funzione che faciliti l'accesso a contenuti non autorizzati.

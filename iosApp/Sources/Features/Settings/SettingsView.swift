@@ -61,6 +61,11 @@ struct SettingsView: View {
             if offerPhone {
                 SettingRow(symbol: "qrcode", title: "Configura la TV col telefono", subtitle: "Usa il telefono") { app.open(.pairing) }
             }
+            if !Theme.isTV && !app.sources.isEmpty {
+                SettingRow(symbol: "tv", title: "Invia una lista alla TV", subtitle: "Per i televisori Samsung: niente da scrivere col telecomando") {
+                    app.open(.sendToTv)
+                }
+            }
         }
     }
 
@@ -261,7 +266,7 @@ private struct SourceRow: View {
                             .accessibilityLabel("In uso")
                     }
                 }
-                Text((source.type == SourceType.xtream ? "API Xtream · " : "M3U · ") + host(source.url))
+                Text((source.type == SourceType.xtream ? "Server · " : "M3U · ") + host(source.url))
                     .font(AppFont.bodySmall).foregroundStyle(Theme.textSecondary).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

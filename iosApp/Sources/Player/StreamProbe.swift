@@ -2,7 +2,7 @@ import Foundation
 
 /// Looks at the first bytes of a VOD stream to learn what it REALLY is.
 ///
-/// IPTV servers often label files ".mp4" that are actually MKV/AVI, or answer with an HTML/JSON
+/// Streaming servers often label files ".mp4" that are actually MKV/AVI, or answer with an HTML/JSON
 /// error page (expired account, too many connections) instead of the video. AVPlayer then fails
 /// with a generic "format not supported". Probing first lets us route to the right engine and
 /// show the real reason. The probe request asks for 4 KB only and is closed immediately, so it
@@ -67,6 +67,14 @@ enum StreamProbe {
         }
     }
 
+    /// Same classification for a downloaded file (the extension saved with it can be wrong too).
+    static func probeFile(path: String) -> Result? {
+        guard let h = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? h.close() }
+        guard let data = try? h.read(upToCount: 4096), !data.isEmpty else { return nil }
+        return Result(kind: classify(data), httpStatus: nil)
+    }
+
     static func classify(_ d: Data) -> Kind {
         let b = [UInt8](d.prefix(4096))
         guard b.count >= 4 else { return .unknown }
@@ -74,11 +82,15 @@ enum StreamProbe {
             guard b.count >= from + len else { return "" }
             return String(bytes: b[from..<(from + len)], encoding: .ascii) ?? ""
         }
-        if b.count >= 12, ["ftyp", "moov", "mdat", "free", "skip", "wide"].contains(ascii(4, 4)) { return .mp4 }
+        // ISO BMFF, also fragmented MP4 / CMAF ("styp", "sidx", "moof") and progressive-download hints ("pdin").
+        if b.count >= 12, ["ftyp", "moov", "mdat", "free", "skip", "wide", "styp", "sidx", "moof", "pdin"].contains(ascii(4, 4)) {
+            return .mp4
+        }
         if b[0] == 0x1A, b[1] == 0x45, b[2] == 0xDF, b[3] == 0xA3 { return .matroska }
         if ascii(0, 4) == "RIFF", ascii(8, 3) == "AVI" { return .avi }
         if ascii(0, 3) == "FLV" { return .flv }
         if b[0] == 0x47, b.count > 188, b[188] == 0x47 { return .mpegTS }
+        if b.count > 196, b[4] == 0x47, b[196] == 0x47 { return .mpegTS } // M2TS (192-byte packets)
         let text = String(decoding: b.prefix(512), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         if text.hasPrefix("#EXTM3U") { return .hls }
         let lower = text.lowercased()

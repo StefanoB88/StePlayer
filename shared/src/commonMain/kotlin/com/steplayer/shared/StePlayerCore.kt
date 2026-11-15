@@ -12,6 +12,7 @@ import com.steplayer.shared.platform.PlatformDependencies
 import com.steplayer.shared.playback.PlaybackManager
 import com.steplayer.shared.reminders.ExpiryReminders
 import com.steplayer.shared.pairing.PairingServer
+import com.steplayer.shared.pairing.SendToTvServer
 import com.steplayer.shared.settings.PlayerPreferences
 import com.steplayer.shared.diagnostics.ConnectionTest
 import com.steplayer.shared.search.SearchIndex
@@ -46,6 +47,9 @@ class StePlayerCore(platform: PlatformDependencies) {
 
     /** "Configura la TV col telefono": local QR pairing server (TV apps only). */
     val pairing = PairingServer(sources)
+
+    /** "Invia una lista alla TV": the phone serves its lists to TVs that can't run a server (Samsung). */
+    val sendToTv = SendToTvServer(sources)
 
     /** Player preferences: buffer, "still watching", audio/subtitle languages, style, A/V offsets. */
     val playerPreferences = PlayerPreferences(database)

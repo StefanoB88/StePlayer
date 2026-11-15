@@ -22,6 +22,6 @@ interface PlatformDependencies {
     val downloadsDirectory: String
     /** iOS/tvOS AVPlayer only handles HLS for live; Android/ExoPlayer is happy with raw TS. */
     val prefersHlsLive: Boolean
-    /** Default User-Agent sent to IPTV servers. */
+    /** Default User-Agent sent to streaming servers. */
     val defaultUserAgent: String
 }

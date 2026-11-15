@@ -30,7 +30,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>StePlayer usa la rete locale per trasmettere video ai dispositivi AirPlay e per ricevere dal tuo telefono i dati della lista.</string>
+	<string>StePlayer usa la rete locale per trasmettere video ai dispositivi AirPlay e per scambiare i dati della lista tra telefono e televisore.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

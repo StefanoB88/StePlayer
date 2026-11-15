@@ -1,0 +1,26 @@
+{
+  "name": "steplayer-tizen",
+  "private": true,
+  "version": "1.0.0",
+  "description": "StePlayer for Samsung Smart TV (Tizen web app)",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "dev": "node dev/server.mjs"
+  },
+  "devDependencies": {
+    "@material-design-icons/svg": "^0.14.15",
+    "@types/node": "^24.19.2",
+    "@types/pako": "^2.0.4",
+    "esbuild": "^0.25.12",
+    "fake-indexeddb": "^6.2.8",
+    "puppeteer-core": "^24.43.1",
+    "typescript": "5.9"
+  },
+  "dependencies": {
+    "pako": "^2.2.0"
+  }
+}

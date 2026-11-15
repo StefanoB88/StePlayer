@@ -78,7 +78,7 @@ class SourceRepository internal constructor(
             db.transactionWithResult {
                 when (normalized) {
                     is SourceInput.Xtream -> q.insertSource(
-                        name = normalized.name.ifBlank { "Xtream" },
+                        name = normalized.name.ifBlank { "Server" },
                         type = SourceType.XTREAM.name,
                         url = XtreamUrls.normalizeBaseUrl(normalized.serverUrl),
                         username = normalized.username.trim(),
@@ -144,6 +144,15 @@ class SourceRepository internal constructor(
 
     internal fun m3uUrl(source: Source): String? =
         if (source.type == SourceType.M3U) credentials.load(secretKey(source.id)) else null
+
+    /** The full input of a saved list, secrets included ("Invia una lista alla TV"). Never logged. */
+    internal suspend fun exportInput(id: Long): SourceInput? {
+        val s = byId(id) ?: return null
+        return when (s.type) {
+            SourceType.XTREAM -> xtreamCredentials(s)?.let { SourceInput.Xtream(s.name, s.url, s.username.orEmpty(), it.password, s.userAgent) }
+            SourceType.M3U -> m3uUrl(s)?.let { SourceInput.M3u(s.name, it, s.epgUrl, s.userAgent) }
+        }
+    }
 
     /** "server.esempio/lista.m3u" works like the Xtream server field: a missing scheme means http. */
     private fun SourceInput.withSchemes(): SourceInput =

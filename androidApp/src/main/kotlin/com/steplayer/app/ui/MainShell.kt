@@ -1,5 +1,11 @@
 package com.steplayer.app.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -86,8 +92,24 @@ fun MainShell(actions: AppActions) {
     }
 
     if (wide) {
+        // TV remote convention: Back from the content goes to the rail (on the current tab), Back on the rail goes
+        // to Home, Back on Home's rail leaves the app. Without this the first Back closed the app.
+        val railFocus = remember { tabs.associateWith { FocusRequester() } }
+        var railFocused by remember { mutableStateOf(false) }
+        BackHandler(enabled = isTv && (!railFocused || selected != Tab.HOME)) {
+            if (!railFocused) {
+                runCatching { railFocus.getValue(selected).requestFocus() }
+            } else {
+                selected = Tab.HOME
+                runCatching { railFocus.getValue(Tab.HOME).requestFocus() }
+            }
+        }
         Row(Modifier.fillMaxSize()) {
-            NavRail(tabs, selected, onSelect = { selected = it }, actions = actions)
+            NavRail(
+                tabs, selected, onSelect = { selected = it }, actions = actions,
+                focusRequesters = railFocus,
+                modifier = Modifier.onFocusChanged { railFocused = it.hasFocus },
+            )
             Box(Modifier.weight(1f).fillMaxHeight()) { content() }
         }
     } else {
@@ -141,9 +163,16 @@ private fun BottomBar(tabs: List<Tab>, selected: Tab, onSelect: (Tab) -> Unit) {
 }
 
 @Composable
-private fun NavRail(tabs: List<Tab>, selected: Tab, onSelect: (Tab) -> Unit, actions: AppActions) {
+private fun NavRail(
+    tabs: List<Tab>,
+    selected: Tab,
+    onSelect: (Tab) -> Unit,
+    actions: AppActions,
+    focusRequesters: Map<Tab, FocusRequester>,
+    modifier: Modifier = Modifier,
+) {
     Column(
-        Modifier
+        modifier
             .fillMaxHeight()
             .width(92.dp)
             .background(Palette.Surface)
@@ -162,7 +191,7 @@ private fun NavRail(tabs: List<Tab>, selected: Tab, onSelect: (Tab) -> Unit, act
         Spacer(Modifier.height(16.dp))
         RailItem(Icons.Rounded.Search, stringResource(R.string.nav_search), false) { actions.openSearch() }
         tabs.forEach { tab ->
-            RailItem(tab.icon, stringResource(tab.label), tab == selected) { onSelect(tab) }
+            RailItem(tab.icon, stringResource(tab.label), tab == selected, Modifier.focusRequester(focusRequesters.getValue(tab))) { onSelect(tab) }
         }
         Spacer(Modifier.weight(1f))
         RailItem(Icons.Rounded.Settings, stringResource(R.string.nav_settings), false) { actions.openSettings() }
@@ -170,10 +199,10 @@ private fun NavRail(tabs: List<Tab>, selected: Tab, onSelect: (Tab) -> Unit, act
 }
 
 @Composable
-private fun RailItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+private fun RailItem(icon: ImageVector, label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     Column(
-        Modifier
+        modifier
             .width(76.dp)
             .focusHighlight(shape, 1.05f)
             .clip(shape)

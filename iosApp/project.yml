@@ -88,7 +88,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
-        NSLocalNetworkUsageDescription: "StePlayer usa la rete locale per trasmettere video ai dispositivi AirPlay e per ricevere dal tuo telefono i dati della lista."
+        NSLocalNetworkUsageDescription: "StePlayer usa la rete locale per trasmettere video ai dispositivi AirPlay e per scambiare i dati della lista tra telefono e televisore."
         # Downloads stay private to the app: no Files app exposure, no "open in place".
         UIFileSharingEnabled: false
         LSSupportsOpeningDocumentsInPlace: false

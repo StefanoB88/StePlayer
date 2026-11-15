@@ -15,9 +15,11 @@ import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.allowRgb565
 import coil3.request.crossfade
 import com.steplayer.app.cast.CastSupport
 import com.steplayer.app.download.AndroidDownloadEngine
+import com.steplayer.app.ui.components.ArtworkSizeInterceptor
 import com.steplayer.app.reminders.ExpiryScheduler
 import com.steplayer.shared.StePlayerCore
 import com.steplayer.shared.playback.BufferAdvisor
@@ -64,7 +66,7 @@ class StePlayerApp : Application(), SingletonImageLoader.Factory, WorkConfigurat
     }
 
     /**
-     * Playback-only client: no idle keep-alive sockets (a lingering socket can keep an IPTV account
+     * Playback-only client: no idle keep-alive sockets (a lingering socket can keep a streaming account
      * "busy"), short timeouts, and no transparent retries (the player owns the retry policy).
      */
     val playbackHttp: OkHttpClient by lazy {
@@ -165,12 +167,24 @@ class StePlayerApp : Application(), SingletonImageLoader.Factory, WorkConfigurat
                     .maxSizeBytes(300L * 1024 * 1024)
                     .build()
             }
-            .crossfade(200)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { okHttp })) }
+            // TV boxes: no fade-in (every poster appearing while scrolling would redraw for 200 ms on a weak GPU);
+            // low-RAM devices: RGB_565 posters (half the memory and bandwidth, no visible difference on artwork).
+            .crossfade(!isTv)
+            .allowRgb565(isLowRamDevice())
+            .components {
+                add(ArtworkSizeInterceptor())
+                add(OkHttpNetworkFetcherFactory(callFactory = { okHttp }))
+            }
             .build()
 }
 
 private const val DEFERRED_INIT_MS = 3_000L
+
+/** 1–2 GB TV boxes and low-end phones. */
+private fun Context.isLowRamDevice(): Boolean {
+    val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+    return am.isLowRamDevice || am.memoryClass <= 192
+}
 
 private fun Context.imageMemoryCacheBytes(): Long {
     val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager

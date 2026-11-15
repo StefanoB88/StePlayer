@@ -189,7 +189,7 @@ final class PlayerViewModel {
                 session = timer
             }
             await loadDelays()
-            let stream = try await resolve()
+            var stream = try await resolve()
             guard token == startToken, !isClosed else { return }
             let isLocal = stream.url.hasPrefix("file://")
             // Rule: the previous stream must be really closed (and its lease released) before a new acquire.
@@ -210,18 +210,27 @@ final class PlayerViewModel {
                     return
                 }
             }
-            // VOD only: look at the first bytes (after the lease: the probe is a provider connection too)
-            // to learn the real container, or catch an error page sent instead of the video.
-            if isVod && !isLocal, let url = PlaybackURL.make(stream.url),
-               let probe = await StreamProbe.probe(url: url, headers: stream.headers) {
+            // VOD only: look at the first bytes (remote: after the lease, the probe is a provider connection too;
+            // downloads: read from disk) to learn the real container, or catch an error page sent instead of the
+            // video. The extension is only a hint: ".mp4" files that are MKV, MP4 behind "/movie/1/2/3", ...
+            if isVod, let url = PlaybackURL.make(stream.url) {
+                let probe = isLocal ? StreamProbe.probeFile(path: url.path) : await StreamProbe.probe(url: url, headers: stream.headers)
                 guard token == startToken, !isClosed else { releaseLease(); return }
-                if case .serverError = probe.kind {
-                    await failForServerErrorPage(token: token)
-                    return
-                }
-                if let container = StreamProbe.container(for: probe.kind), ["mkv", "avi", "flv", "ts"].contains(container),
-                   VLCSupport.isAvailable {
-                    forceVLC = true
+                if let probe {
+                    if case .serverError = probe.kind, !isLocal {
+                        await failForServerErrorPage(token: token)
+                        return
+                    }
+                    if let container = StreamProbe.container(for: probe.kind) {
+                        if EngineRouting.prefersVLC(container) {
+                            if VLCSupport.isAvailable { forceVLC = true }
+                        } else {
+                            // MP4 / HLS: AVPlayer (AirPlay, PiP), told the real format.
+                            stream = EngineRouting.with(container: container, stream)
+                        }
+                    } else if probe.kind == .unknown, VLCSupport.isAvailable {
+                        forceVLC = true // bytes AVFoundation has no parser for: VLC recognises far more formats
+                    }
                 }
             }
             let startAt: Double
@@ -381,7 +390,13 @@ final class PlayerViewModel {
     private func open(_ stream: PlayableStream, startAt: Double) {
         currentStream = stream
         let needsDelays = audioDelayMs != 0 || subtitleDelayMs != 0
-        var wantsVLC = forceVLC || EngineRouting.prefersVLC(stream.container) || (needsDelays && VLCSupport.isAvailable)
+        // Live / catch-up without an extension ("http://host/user/pass/123", typical of M3U lists) is almost always
+        // raw MPEG-TS, which AVPlayer can't open over HTTP: VLC recognises the format by itself (like ExoPlayer).
+        let unknownLive = !isVod && stream.container == nil && !stream.url.hasPrefix("file://")
+        // This server's live HLS already failed in this session (disabled output, codec AVPlayer can't decode).
+        let liveNeedsVLC = isLive && Self.vlcLiveSources.contains(sourceId)
+        var wantsVLC = forceVLC || EngineRouting.prefersVLC(stream.container)
+            || (VLCSupport.isAvailable && (needsDelays || unknownLive || liveNeedsVLC))
         #if DEBUG
         // Development only: `STEPLAYER_DEMO_FORCE_VLC=1` proves the VLC engine on the simulator.
         if ProcessInfo.processInfo.environment["STEPLAYER_DEMO_FORCE_VLC"] == "1" { wantsVLC = true }
@@ -390,6 +405,7 @@ final class PlayerViewModel {
         var s = stream
         if wantsVLC, let vlc = VLCSupport.makeEngine() {
             newEngine = vlc
+            s = EngineRouting.tsVariant(of: stream) ?? stream // VLC plays live as MPEG-TS, the format Android uses
         } else {
             if wantsVLC { s = EngineRouting.hlsVariant(of: stream) ?? stream }
             newEngine = AVPlayerEngine()
@@ -429,6 +445,8 @@ final class PlayerViewModel {
         }
         #endif
         engine = newEngine
+        PlaybackErrorText.engineChoice(newEngine is AVPlayerEngine ? "AVPlayer" : "VLC", container: s.container,
+                                       reason: forceVLC ? "forced" : (unknownLive ? "unknown-live" : (liveNeedsVLC ? "source-needs-vlc" : "routing")))
         newEngine.load(s, startAt: startAt, title: title, subtitle: subtitle)
     }
 
@@ -441,9 +459,11 @@ final class PlayerViewModel {
         teardown()
         let token = startToken
 
-        // AVPlayer can't decode the container: switch to VLC right away if available.
-        if f.unsupported, !forceVLC, VLCSupport.isAvailable, engine is AVPlayerEngine {
+        // AVPlayer can't open or decode this stream: VLC gets it right away (once per item).
+        if shouldTryVLC(f) {
+            PlaybackErrorText.record(PlaybackErrorText.code(f.nsError) ?? f.message, context: "AVPlayer failed, trying VLC")
             forceVLC = true
+            if isLive && (f.unsupported || f.httpStatus == 404) { Self.vlcLiveSources.insert(sourceId) }
             Task { await start() }
             return
         }
@@ -453,6 +473,23 @@ final class PlayerViewModel {
             guard token == startToken, !isClosed else { return }
             scheduleRetryOrFail(error)
         }
+    }
+
+    /// Live sources whose HLS AVPlayer couldn't play in this session: their next channels open with VLC directly
+    /// instead of failing once per zap.
+    private static var vlcLiveSources = Set<Int64>()
+
+    /// The same rule ExoPlayer gets for free by supporting every container: before showing an error, the other
+    /// engine tries. Not for what no engine can fix (credentials, expired account, too many connections, offline).
+    private func shouldTryVLC(_ f: EngineFailure) -> Bool {
+        guard !forceVLC, VLCSupport.isAvailable, engine is AVPlayerEngine else { return false }
+        if f.unsupported { return true }
+        guard f.neverPlayed else { return false } // it was playing: network/server trouble, the normal retry
+        if let status = f.httpStatus {
+            // A 404 on the HLS address of a live channel usually means the server's HLS output is off: ".ts" works.
+            return status == 404 && currentStream.flatMap(EngineRouting.tsVariant(of:)) != nil
+        }
+        return f.nsError?.domain != NSURLErrorDomain
     }
 
     private func mapError(_ f: EngineFailure) async -> PlaybackError {
@@ -493,6 +530,10 @@ final class PlayerViewModel {
                 self?.retryCountdown = seconds
             }
             guard let self, !Task.isCancelled else { return }
+            // The countdown is over: from here this task is the attempt itself. `start()` cancels the pending
+            // retry, which used to cancel this very task, so the attempt's network calls (probe, lease, resolve)
+            // failed at once as "cancelled" (same bug fixed on Android).
+            self.retryTask = nil
             self.retryCountdown = nil
             self.lastRetryError = error
             await self.startForRetry()
@@ -756,6 +797,14 @@ final class PlayerViewModel {
 
     private func handleStall() {
         if !isLive && currentTime > 1 { resumeAt = currentTime }
+        // AVPlayer accepted the stream but never showed a frame (segments it can't parse): VLC tries before a retry.
+        if let av = engine as? AVPlayerEngine, !av.didPlay, !forceVLC, VLCSupport.isAvailable {
+            PlaybackErrorText.record("no frames", context: "AVPlayer stalled before playing, trying VLC")
+            teardown()
+            forceVLC = true
+            Task { await start() }
+            return
+        }
         teardown()
         scheduleRetryOrFail(PlaybackErrors.shared.stalled())
     }

@@ -2,6 +2,8 @@ import SwiftUI
 
 enum Legal {
     static let disclaimer = "StePlayer è solo un lettore: non fornisce né vende contenuti. Usa solo liste che hai il diritto di guardare."
+    /// First-launch legal gate (3 points, same text on Android, iOS and Samsung TV).
+    static let gate = "1. StePlayer è esclusivamente un lettore multimediale neutrale: non fornisce, non vende e non include alcun contenuto audiovisivo o abbonamento.\n\n2. Devi disporre dei diritti per riprodurre qualsiasi flusso o lista che inserisci nell'app.\n\n3. Lo sviluppatore declina ogni responsabilità per l'uso dell'app con contenuti protetti dal diritto d'autore senza autorizzazione."
     static let acceptance = "Confermo che userò StePlayer solo con contenuti che ho il diritto di guardare"
     /// Android `privacy_note`, adapted: iOS keeps passwords in the Keychain (Portachiavi).
     static let privacy = "Tutti i dati restano sul tuo dispositivo. Le password sono cifrate nel Portachiavi di iOS. Nessun account, nessun tracciamento."
@@ -53,7 +55,7 @@ struct WelcomeView: View {
                     Text("Lettore multimediale per le tue liste. Veloce, pulito e privato.")
                         .font(AppFont.bodyLarge).foregroundStyle(Theme.textSecondary).multilineTextAlignment(.center)
                     Spacer().frame(height: 32)
-                    InfoCard(symbol: "building.columns.fill", text: Legal.disclaimer)
+                    InfoCard(symbol: "building.columns.fill", text: Legal.gate)
                     Spacer().frame(height: 12)
                     InfoCard(symbol: "lock.fill", text: Legal.privacy)
                     Spacer().frame(height: 20)
@@ -72,7 +74,7 @@ struct WelcomeView: View {
                     .buttonStyle(PressStyle(radius: 14, scale: 1.02))
                     .accessibilityAddTraits(confirmed ? .isSelected : [])
                     Spacer().frame(height: 20)
-                    PrimaryButton(text: "Continua", enabled: confirmed, fullWidth: true) {
+                    PrimaryButton(text: "Ho capito e accetto", enabled: confirmed, fullWidth: true) {
                         legalAccepted = true
                         onContinue()
                     }

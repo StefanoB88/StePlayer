@@ -60,7 +60,7 @@ ${error?.let { "<div class=\"err\">${esc(it)}</div>" } ?: ""}
 <form method="post" action="${esc(action)}" autocomplete="off">
 <input type="radio" name="type" value="xtream" id="t-x" ${if (!m3uSelected) "checked" else ""}>
 <input type="radio" name="type" value="m3u" id="t-m" ${if (m3uSelected) "checked" else ""}>
-<div class="tabs"><label for="t-x">API Xtream</label><label for="t-m">Lista M3U</label></div>
+<div class="tabs"><label for="t-x">Accesso al server</label><label for="t-m">Lista M3U</label></div>
 <label class="f" for="name">Nome (facoltativo)</label>
 <input class="i" id="name" name="name" placeholder="La mia lista" value="${esc(previous?.name)}">
 <div class="pane px">

@@ -16,15 +16,15 @@
     <string name="welcome_title">Benvenuto in StePlayer</string>
     <string name="welcome_subtitle">Lettore multimediale per le tue liste. Veloce, pulito e privato.</string>
     <string name="disclaimer">StePlayer è solo un lettore: non fornisce né vende contenuti. Usa solo liste che hai il diritto di guardare.</string>
-    <string name="disclaimer_accept">Continua</string>
+    <string name="disclaimer_accept">Ho capito e accetto</string>
     <string name="disclaimer_checkbox">Confermo che userò StePlayer solo con contenuti che ho il diritto di guardare</string>
-    <string name="xtream_login_hint">Accedi con API Xtream</string>
+    <string name="xtream_login_hint">Accedi con indirizzo, username e password del tuo server</string>
     <string name="privacy_note">Tutti i dati restano sul tuo dispositivo. Le password sono cifrate con il Keystore di Android. Nessun account, nessun tracciamento.</string>
 
     <!-- Add source -->
     <string name="add_list">Aggiungi lista</string>
     <string name="edit_list">Modifica lista</string>
-    <string name="tab_xtream">API Xtream</string>
+    <string name="tab_xtream">Accesso al server</string>
     <string name="tab_m3u">Lista M3U</string>
     <string name="field_name">Nome</string>
     <string name="field_server">Server (es. http://server.esempio:8080)</string>
@@ -46,7 +46,7 @@
     <string name="error_account_expired">L\'abbonamento risulta scaduto.</string>
     <string name="error_network">Impossibile raggiungere il server. Controlla l\'indirizzo e la connessione.</string>
     <string name="error_server">Il server ha risposto con un errore. Riprova più tardi.</string>
-    <string name="error_parse">Il server ha inviato una risposta non valida. Verifica che sia compatibile con le API Xtream.</string>
+    <string name="error_parse">Il server ha inviato una risposta non valida. Controlla l\'indirizzo del server.</string>
     <string name="error_generic">Si è verificato un errore: %1$s</string>
 
     <!-- Sync -->
@@ -285,4 +285,17 @@
     <string name="refresh_a11y">Aggiorna la lista di canali, film, serie e guida TV</string>
     <string name="refresh_done">Lista aggiornata</string>
     <string name="refresh_failed">Aggiornamento non riuscito. %1$s</string>
+    <string name="send_tv_title">Invia una lista alla TV</string>
+    <string name="send_tv_desc">Per i televisori Samsung: niente da scrivere col telecomando</string>
+    <string name="send_tv_step1">1. Sul televisore apri StePlayer e scegli Aggiungi lista → Usa il telefono</string>
+    <string name="send_tv_step2">2. Tieni il telefono sulla stessa rete Wi-Fi del televisore e lascia aperta questa schermata</string>
+    <string name="send_tv_step3">3. Inserisci sul televisore questo codice:</string>
+    <string name="send_tv_waiting">In attesa del televisore…</string>
+    <string name="send_tv_sent">Fatto! Continua sul televisore.</string>
+    <string name="send_tv_address">Se il televisore non trova il telefono, inserisci questo indirizzo: %1$s</string>
+    <string name="send_tv_retry">Nuovo codice</string>
+    <string name="send_tv_lists">Liste da inviare</string>
+    <string name="send_tv_no_lists">Aggiungi prima una lista su questo telefono.</string>
+    <string name="send_tv_privacy">I dati passano solo nella tua rete di casa, direttamente dal telefono al televisore. Nessun server esterno.</string>
+    <string name="disclaimer_gate">1. StePlayer è esclusivamente un lettore multimediale neutrale: non fornisce, non vende e non include alcun contenuto audiovisivo o abbonamento.\n\n2. Devi disporre dei diritti per riprodurre qualsiasi flusso o lista che inserisci nell\'app.\n\n3. Lo sviluppatore declina ogni responsabilità per l\'uso dell\'app con contenuti protetti dal diritto d\'autore senza autorizzazione.</string>
 </resources>

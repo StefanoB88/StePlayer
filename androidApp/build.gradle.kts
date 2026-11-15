@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -60,6 +61,12 @@ kotlin {
     }
 }
 
+// Baseline Profile (generated on an Android TV emulator by :baselineprofile): AOT-compiles the startup and
+// D-pad browsing paths at install time, and orders the DEX so startup classes are read first.
+baselineProfile {
+    dexLayoutOptimization = true
+}
+
 composeCompiler {
     stabilityConfigurationFiles.add(project.layout.projectDirectory.file("compose_stability.conf"))
 }
@@ -102,4 +109,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     implementation(libs.zxing.core)
+    // Installs the Baseline Profile also on sideloaded APKs (TV boxes rarely get them from the Play Store).
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
 }

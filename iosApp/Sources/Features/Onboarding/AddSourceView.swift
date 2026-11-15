@@ -66,14 +66,14 @@ struct AddSourceView: View {
 
     @ViewBuilder private var form: some View {
         if !editing {
-            SegmentedTabs(options: ["API Xtream", "Lista M3U"], selected: kind == .xtream ? 0 : 1) { i in
+            SegmentedTabs(options: ["Accesso al server", "Lista M3U"], selected: kind == .xtream ? 0 : 1) { i in
                 kind = i == 0 ? .xtream : .m3u
                 error = nil
             }
         }
         FormField(label: "Nome", text: $name)
         if kind == .xtream {
-            Text("Accedi con API Xtream").font(AppFont.labelLarge).foregroundStyle(Theme.textSecondary)
+            Text("Accedi con indirizzo, username e password del tuo server").font(AppFont.labelLarge).foregroundStyle(Theme.textSecondary)
             FormField(label: "Server (es. http://server.esempio:8080)", text: $server, keyboard: .url)
             FormField(label: "Username", text: $username, contentType: .username)
             FormField(label: editing ? "Password (lascia vuoto per non cambiarla)" : "Password", text: $password,

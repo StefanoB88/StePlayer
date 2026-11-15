@@ -14,7 +14,7 @@ class ExpiryRemindersTest {
     private val rome = 3600L // UTC+1
     private fun utc(y: Int, m: Int, d: Int, h: Int, min: Int = 0) =
         CivilTime.toEpochSeconds(CivilDateTime(y, m, d, h, min, 0)) * 1000
-    private fun src(exp: Long?) = Source(7, "Mio IPTV", SourceType.XTREAM, "http://x", "u", null, null, 0, emptyList(), exp, 1, null, null)
+    private fun src(exp: Long?) = Source(7, "Mia lista", SourceType.XTREAM, "http://x", "u", null, null, 0, emptyList(), exp, 1, null, null)
 
     @Test fun schedulesThreeAndOneDayBeforeAt10Local() {
         val exp = utc(2026, 12, 20, 2, 30) // 03:30 in Rome on the 20th
@@ -44,6 +44,6 @@ class ExpiryRemindersTest {
         assertTrue(ExpiryReminders.noticesFor(listOf(src(now + 10 * day)), now).isEmpty())
         assertEquals(2, ExpiryReminders.noticesFor(listOf(src(now + 2 * day - 1000)), now).single().daysLeft)
         val expired = ExpiryReminders.noticesFor(listOf(src(now - 1)), now).single()
-        assertTrue(expired.expired); assertEquals("L'abbonamento «Mio IPTV» è scaduto.", expired.message)
+        assertTrue(expired.expired); assertEquals("L'abbonamento «Mia lista» è scaduto.", expired.message)
     }
 }

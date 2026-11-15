@@ -67,7 +67,7 @@ class IntegrationTest {
         assertEquals(XtreamException.Kind.INVALID_CREDENTIALS, bad.kind)
 
         // Pasting the "get.php" M3U link must upgrade to Xtream.
-        val id = core.sources.add(SourceInput.M3u("Mio IPTV", "http://srv.example:8080/get.php?username=u&password=secret&type=m3u_plus"))
+        val id = core.sources.add(SourceInput.M3u("Mia lista", "http://srv.example:8080/get.php?username=u&password=secret&type=m3u_plus"))
         val source = core.sources.byId(id)!!
         assertEquals(SourceType.XTREAM, source.type)
         assertEquals("http://srv.example:8080", source.url)

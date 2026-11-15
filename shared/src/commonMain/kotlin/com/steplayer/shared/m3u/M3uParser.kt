@@ -21,7 +21,7 @@ data class M3uEntry(
 data class M3uHeader(val epgUrls: List<String>, val userAgent: String?)
 
 /**
- * Incremental M3U / M3U8 (IPTV "extended") parser. Feed it one line at a time; it never
+ * Incremental M3U / M3U8 ("extended") parser. Feed it one line at a time; it never
  * holds the whole list in memory, so 200k-entry lists are fine on low-end TV boxes.
  */
 class M3uParser(private val onEntry: (M3uEntry) -> Unit) {

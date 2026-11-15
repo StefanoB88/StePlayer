@@ -1,8 +1,9 @@
 import ImageIO
+import Shared
 import SwiftUI
 import UIKit
 
-/// Fast image loading for huge IPTV catalogs:
+/// Fast image loading for huge catalogs:
 /// URLCache-backed disk cache + decoded in-memory cache (cost-limited) + ImageIO downsampling to the
 /// displayed size, decoded off the main thread. Identical requests share one download, a download is
 /// cancelled when every view waiting for it went away, and broken URLs are not retried for a while.
@@ -94,23 +95,38 @@ final class ImagePipeline: @unchecked Sendable {
     private func load(_ url: URL, urlString: String, px: Int, key k: NSString, token: Int) async -> UIImage? {
         defer { lock.withLock { if inflight[k as String]?.token == token { inflight[k as String] = nil } } }
         do {
-            let (data, response) = try await session.data(from: url)
-            try Task.checkCancellation()
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                markFailed(urlString)
-                return nil
+            // Smaller CDN variant that still covers the slot (shared ArtworkUrl); the list's own URL if it fails.
+            let sized = ArtworkUrl.shared.sized(url: urlString, widthPx: Int32(px))
+            if sized != urlString, let smallURL = URL(string: sized) {
+                do {
+                    if let image = try await fetch(smallURL, px: px) {
+                        memory.setObject(image, forKey: k, cost: Self.cost(of: image))
+                        return image
+                    }
+                } catch let error where !Self.isCancellation(error) {} // try the original below; cancellation propagates
             }
-            guard let image = Self.downsample(data, maxPixel: CGFloat(px)) else {
+            guard let image = try await fetch(url, px: px) else {
                 markFailed(urlString)
                 return nil
             }
             memory.setObject(image, forKey: k, cost: Self.cost(of: image))
             return image
         } catch {
-            let cancelled = error is CancellationError || (error as? URLError)?.code == .cancelled
-            if !cancelled { markFailed(urlString) }
+            if !Self.isCancellation(error) { markFailed(urlString) }
             return nil
         }
+    }
+
+    private static func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
+    }
+
+    /// nil = HTTP error or undecodable data; throws on transport errors and cancellation.
+    private func fetch(_ url: URL, px: Int) async throws -> UIImage? {
+        let (data, response) = try await session.data(from: url)
+        try Task.checkCancellation()
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return nil }
+        return Self.downsample(data, maxPixel: CGFloat(px))
     }
 
     private func markFailed(_ url: String) {

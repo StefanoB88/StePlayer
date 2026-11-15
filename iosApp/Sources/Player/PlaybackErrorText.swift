@@ -32,6 +32,14 @@ enum PlaybackErrorText {
     }
 
     /// Writes the technical code to the system log (never shown to the user).
+    /// Which engine opened which container (never the URL: it carries credentials).
+    static func engineChoice(_ engine: String, container: String?, reason: String) {
+        log.info("open \(engine, privacy: .public) container=\(container ?? "?", privacy: .public) \(reason, privacy: .public)")
+        #if DEBUG
+        print("[playback] open \(engine) container=\(container ?? "?") \(reason)")
+        #endif
+    }
+
     static func record(_ code: String?, context: String) {
         guard let code else { return }
         log.error("\(context, privacy: .public): \(code, privacy: .public)")

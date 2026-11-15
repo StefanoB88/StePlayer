@@ -30,7 +30,7 @@ class NotEnoughSpaceException(val neededBytes: Long) : IOException("Not enough s
  * Downloads one file as fast as the provider allows, resumable at any point.
  *
  * - **Segmented**: if the server supports HTTP ranges and [maxConnections] > 1, the file is split
- *   in up to that many parts downloaded in parallel (many IPTV servers cap speed per connection).
+ *   in up to that many parts downloaded in parallel (many streaming servers cap speed per connection).
  *   Never more connections than the caller was granted by the ConnectionGuard.
  * - **Resumable**: progress of every segment is persisted in `<file>.state` once per second, so a
  *   pause, network loss, process death or reboot continues where it stopped.

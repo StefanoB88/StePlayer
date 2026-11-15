@@ -43,6 +43,7 @@ enum Route: Hashable {
     case addSource
     case editSource(id: Int64)
     case pairing
+    case sendToTv
 }
 
 /// Root of the ready app: a navigation stack (custom top bars) hosting the tab shell.
@@ -76,6 +77,12 @@ struct MainShellRoot: View {
         case .addSource: AddSourceView(mode: .add)
         case let .editSource(id): AddSourceView(mode: .edit(id))
         case .pairing: PairingScreen()
+        case .sendToTv:
+            #if os(iOS)
+            SendToTvView()
+            #else
+            EmptyView()
+            #endif
         }
     }
 }

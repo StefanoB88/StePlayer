@@ -50,11 +50,13 @@
 		6AEAC4F76A9AB0804D24F5D2 /* GuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2877A79A40587F4BFEA2CFA0 /* GuideView.swift */; };
 		6B3B1F7771CA1D84B45918EE /* VLCPlayerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B76435D35BFFF556BD001AD0 /* VLCPlayerEngine.swift */; };
 		6D31E079CAD89020D32CF321 /* LiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70A32983EADE41672914DF0 /* LiveView.swift */; };
+		72CF49F6290C5D28B30D8044 /* SendToTvView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D3430CD9F14433C0D0772E /* SendToTvView.swift */; };
 		746F95020EAB0E2499E6C5D1 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3EDFFDE8C6617AB11190B9 /* AppDelegate.swift */; };
 		7B285B4C7AEF50456BFA0993 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2BEE0B7004BBEC878A10927 /* OnboardingView.swift */; };
 		7C71F143C83E9A4ED33FBD4D /* StreamProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0780E58D3D48E7456B4E0E6 /* StreamProbe.swift */; };
 		7ED7FC2DD73CE5AFB40C97A2 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B809FEF856A544DDF5B938 /* MainTabView.swift */; };
 		920900CA47EB34B9A763F3C5 /* ConnectionTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58AD59863FA82A344AE6EB56 /* ConnectionTestView.swift */; };
+		96B8D1979530B6DF48D2A0BC /* SendToTvView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D3430CD9F14433C0D0772E /* SendToTvView.swift */; };
 		9AE6F17A502731055D662A9B /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C9CF9A636136EA5F0AB48B5B /* MobileVLCKit.xcframework */; };
 		9D829364ABC9B98C85FEBB2F /* KeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB4709BF75C3754A5E7596AB /* KeychainCredentialStore.swift */; };
 		A01158576902A7F35474269B /* AddSourceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B0096C4BBA0394820BF3E1 /* AddSourceView.swift */; };
@@ -157,6 +159,7 @@
 		DA37A3C8B4897D7FB34BDA7D /* TVVLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = TVVLCKit.xcframework; path = Frameworks/TVVLCKit.xcframework; sourceTree = "<group>"; };
 		DB4709BF75C3754A5E7596AB /* KeychainCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainCredentialStore.swift; sourceTree = "<group>"; };
 		E0780E58D3D48E7456B4E0E6 /* StreamProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamProbe.swift; sourceTree = "<group>"; };
+		E0D3430CD9F14433C0D0772E /* SendToTvView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendToTvView.swift; sourceTree = "<group>"; };
 		E5017731E0D0C1F7AB18ED9E /* MovieDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailView.swift; sourceTree = "<group>"; };
 		ECBBD10A77344A7E03F54930 /* CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogView.swift; sourceTree = "<group>"; };
 		F2BEE0B7004BBEC878A10927 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -310,6 +313,7 @@
 			children = (
 				58AD59863FA82A344AE6EB56 /* ConnectionTestView.swift */,
 				7260647C048CB7EE09F5F8E6 /* PlaybackSettingsView.swift */,
+				E0D3430CD9F14433C0D0772E /* SendToTvView.swift */,
 				007DCC3EC58AB87AA44C56BF /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -561,6 +565,7 @@
 				31D07E996D45D471E5C9EFB8 /* PlayerScreen.swift in Sources */,
 				D49ADE785F4B17AD08F1E0FE /* PlayerViewModel.swift in Sources */,
 				B2679591BAB43B50AD6D897A /* SearchView.swift in Sources */,
+				72CF49F6290C5D28B30D8044 /* SendToTvView.swift in Sources */,
 				D06509F5ECBEC5DBA817042A /* SeriesDetailView.swift in Sources */,
 				D18016DD2B0C3F5E58D8BAFE /* SettingsView.swift in Sources */,
 				577B8C282E3F4C845597F813 /* StePlayerApp.swift in Sources */,
@@ -607,6 +612,7 @@
 				DD0B2A3D9F638BE35136CE55 /* PlayerScreen.swift in Sources */,
 				59A813C6B4E5313798543779 /* PlayerViewModel.swift in Sources */,
 				32CD375F2A7B3B99F7A36FB5 /* SearchView.swift in Sources */,
+				96B8D1979530B6DF48D2A0BC /* SendToTvView.swift in Sources */,
 				E31F97037202E072DBDFA68D /* SeriesDetailView.swift in Sources */,
 				01EA03CBF2B0F1F41799ABF5 /* SettingsView.swift in Sources */,
 				5CC6E317DD22CF9CE3FA6912 /* StePlayerApp.swift in Sources */,

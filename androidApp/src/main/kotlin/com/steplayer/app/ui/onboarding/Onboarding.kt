@@ -130,7 +130,7 @@ fun OnboardingScreen(onContinue: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(32.dp))
-            InfoCard(Icons.Rounded.Gavel, stringResource(R.string.disclaimer))
+            InfoCard(Icons.Rounded.Gavel, stringResource(R.string.disclaimer_gate))
             Spacer(Modifier.height(12.dp))
             InfoCard(Icons.Rounded.Lock, stringResource(R.string.privacy_note))
             Spacer(Modifier.height(20.dp))

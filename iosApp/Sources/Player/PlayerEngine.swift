@@ -10,6 +10,8 @@ struct EngineFailure {
     var nsError: NSError?
     /// The container could not be decoded by this engine.
     var unsupported = false
+    /// The engine never produced a single frame of this stream (it failed while opening).
+    var neverPlayed = false
 }
 
 struct TrackOption: Identifiable, Hashable {
@@ -90,6 +92,31 @@ enum EngineRouting {
         let url = stream.url
         guard url.hasSuffix(".ts"), url.contains("/live/") || url.contains("/timeshift/") else { return nil }
         return PlayableStream(url: String(url.dropLast(3)) + ".m3u8", headers: stream.headers, isLive: stream.isLive, container: "m3u8")
+    }
+
+    /// The other way round, for VLC (same format Android plays): "/live/.../1.m3u8" → "/live/.../1.ts".
+    /// Also the way out when the server's HLS output is broken or disabled.
+    static func tsVariant(of stream: PlayableStream) -> PlayableStream? {
+        let url = stream.url
+        guard url.hasSuffix(".m3u8"), url.contains("/live/") else { return nil }
+        return PlayableStream(url: String(url.dropLast(5)) + ".ts", headers: stream.headers, isLive: stream.isLive, container: "ts")
+    }
+
+    /// Same stream with the container learned from its first bytes.
+    static func with(container: String, _ stream: PlayableStream) -> PlayableStream {
+        PlayableStream(url: stream.url, headers: stream.headers, isLive: stream.isLive, container: container)
+    }
+
+    /// AVFoundation picks the parser from the URL extension or the server's Content-Type; streaming servers often
+    /// give neither ("/movie/1/2/3" served as text/plain). When the bytes told us the format, say it explicitly.
+    static func overrideMIME(for stream: PlayableStream, url: URL) -> String? {
+        guard !url.isFileURL else { return nil }
+        let ext = url.pathExtension.lowercased()
+        switch stream.container?.lowercased() {
+        case "m3u8" where ext != "m3u8": return "application/vnd.apple.mpegurl"
+        case "mp4" where !["mp4", "m4v", "mov"].contains(ext): return "video/mp4"
+        default: return nil
+        }
     }
 }
 

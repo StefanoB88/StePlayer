@@ -150,7 +150,7 @@ data class PlayerUiState(
 /**
  * Owns the ExoPlayer (and the CastPlayer while casting).
  *
- * Connection hygiene (many IPTV accounts allow ONE connection): every start, zap and retry goes
+ * Connection hygiene (many streaming accounts allow ONE connection): every start, zap and retry goes
  * stop → clearMediaItems → release lease → acquire lease → prepare. Any error stops the player and
  * releases the lease BEFORE a retry is scheduled, and there is never more than one pending retry.
  */

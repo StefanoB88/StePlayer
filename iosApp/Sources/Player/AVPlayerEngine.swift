@@ -28,6 +28,11 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
     private var pendingStart: Double = 0
     private var failedReported = false
     private(set) var hasFailed = false
+    /// The current item has really played (time advanced): failures after that are network/server problems,
+    /// before that AVFoundation may simply be unable to open this stream (the view model then tries VLC).
+    private(set) var didPlay = false
+    /// Opening timeout + the one-off "is the picture/sound really decoded?" check of the current item.
+    private var checksTask: Task<Void, Never>?
 
     var onEnded: (() -> Void)?
     var onError: ((EngineFailure) -> Void)?
@@ -48,7 +53,11 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
         player.allowsExternalPlayback = true
         player.automaticallyWaitsToMinimizeStalling = true
         timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
-            Task { @MainActor in self?.onStateChange?() }
+            Task { @MainActor in
+                guard let self else { return }
+                if self.player.timeControlStatus == .playing, self.player.currentItem != nil { self.didPlay = true }
+                self.onStateChange?()
+            }
         }
         #if os(iOS)
         if AVPictureInPictureController.isPictureInPictureSupported() {
@@ -77,12 +86,15 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
         stop()
         hasFailed = false
         failedReported = false
+        didPlay = false
         guard let url = PlaybackURL.make(stream.url) else {
             report(EngineFailure(message: "Indirizzo dello stream non valido"))
             return
         }
-        let options: [String: Any]? = stream.headers.isEmpty ? nil : ["AVURLAssetHTTPHeaderFieldsKey": stream.headers]
-        let item = AVPlayerItem(asset: AVURLAsset(url: url, options: options))
+        var options: [String: Any] = [:]
+        if !stream.headers.isEmpty { options["AVURLAssetHTTPHeaderFieldsKey"] = stream.headers }
+        if let mime = EngineRouting.overrideMIME(for: stream, url: url) { options[AVURLAssetOverrideMIMETypeKey] = mime }
+        let item = AVPlayerItem(asset: AVURLAsset(url: url, options: options.isEmpty ? nil : options))
         // Buffer profile from the shared BufferAdvisor (0 = let AVFoundation decide).
         item.preferredForwardBufferDuration = bufferProfile?.appleForwardBufferSec ?? (stream.isLive ? 6 : 0)
         player.automaticallyWaitsToMinimizeStalling = true
@@ -112,6 +124,62 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
         ]
         player.replaceCurrentItem(with: item)
         player.play()
+        startChecks(for: item)
+    }
+
+    /// Two things AVPlayer doesn't report as errors:
+    /// - a stream it can't parse sometimes never leaves `.unknown` (raw MPEG-TS over HTTP, odd servers):
+    ///   after 10 s without becoming ready it counts as a failure, so VLC gets a chance at once;
+    /// - a codec it can't decode inside a container it can open (HEVC tagged "hev1", MPEG-2 video, MP2/DTS
+    ///   audio): it "plays" with a black picture or no sound. Once the clock has run for a few seconds the
+    ///   picture must be on screen and at least one audio track must be decodable.
+    private func startChecks(for item: AVPlayerItem) {
+        checksTask?.cancel()
+        checksTask = Task { @MainActor [weak self] in
+            var waited = 0, played = 0
+            // Ends once checked; a paused or buffering item simply isn't checked yet (no deadline).
+            while true {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self, self.player.currentItem === item, !self.failedReported else { return }
+                if item.status == .unknown {
+                    waited += 1
+                    if waited >= 10 {
+                        self.report(EngineFailure(message: "Lo stream non si apre", neverPlayed: true))
+                        return
+                    }
+                    continue
+                }
+                guard item.status == .readyToPlay else { return } // .failed is reported by the observer
+                if self.player.timeControlStatus == .playing { played += 1 }
+                guard played >= 3, self.canVerifyDecoding else { continue } // 3 s of real playback, on screen
+                if let problem = self.decodingProblem(item) {
+                    self.report(EngineFailure(message: problem, unsupported: true))
+                }
+                return
+            }
+        }
+    }
+
+    /// In background / PiP / AirPlay the local layer legitimately shows nothing: check later.
+    private var canVerifyDecoding: Bool {
+        #if os(iOS)
+        if isPictureInPictureActive { return false }
+        #endif
+        return UIApplication.shared.applicationState == .active && !player.isExternalPlaybackActive && layerView.window != nil
+    }
+
+    /// nil when picture and sound are really being decoded.
+    private func decodingProblem(_ item: AVPlayerItem) -> String? {
+        let tracks = item.tracks.filter(\.isEnabled).compactMap(\.assetTrack)
+        let video = tracks.filter { $0.mediaType == .video }
+        let audio = tracks.filter { $0.mediaType == .audio }
+        if !video.isEmpty, !layerView.playerLayer.isReadyForDisplay || video.allSatisfy({ !$0.isPlayable }) {
+            return "Video non decodificabile"
+        }
+        if !audio.isEmpty, audio.allSatisfy({ !$0.isPlayable }) {
+            return "Audio non decodificabile"
+        }
+        return nil
     }
 
     private func statusChanged(_ item: AVPlayerItem) {
@@ -160,15 +228,17 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
                 default: break
                 }
             }
+            // VideoToolbox: bad / unsupported / broken video data.
+            if e.domain == NSOSStatusErrorDomain, [-12909, -12910, -12911, -12906].contains(e.code) { unsupported = true }
             if e.domain == AVFoundationErrorDomain {
-                if [AVError.Code.fileFormatNotRecognized.rawValue, AVError.Code.decoderNotFound.rawValue,
-                    AVError.Code.failedToParse.rawValue].contains(e.code) {
-                    unsupported = true
-                }
+                // decodeFailed, fileFormatNotRecognized, fileFailedToParse, decoderNotFound,
+                // operationNotSupportedForAsset, incompatibleAsset, serverIncorrectlyConfigured (no byte ranges).
+                if [-11821, -11828, -11829, -11833, -11838, -11848, -11850].contains(e.code) { unsupported = true }
             }
         }
         let message = error?.localizedFailureReason ?? error?.localizedDescription ?? "Impossibile riprodurre questo contenuto"
-        return EngineFailure(message: message, httpStatus: status, nsError: chain.first { $0.domain == NSURLErrorDomain } ?? error, unsupported: unsupported)
+        return EngineFailure(message: message, httpStatus: status, nsError: chain.first { $0.domain == NSURLErrorDomain } ?? error,
+                             unsupported: unsupported, neverPlayed: !didPlay)
     }
 
     func play() { player.play() }
@@ -181,6 +251,8 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
     }
 
     func stop() {
+        checksTask?.cancel()
+        checksTask = nil
         player.pause()
         statusObservation?.invalidate()
         statusObservation = nil

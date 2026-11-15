@@ -40,7 +40,8 @@ class PairingServerTest {
 
         val (code, page) = request(local)
         assertEquals(200, code)
-        assertTrue("API Xtream" in page && "Lista M3U" in page)
+        assertTrue("Accesso al server" in page && "Lista M3U" in page)
+        assertTrue("Xtream" !in page, "legal: no third-party names in the UI")
         assertTrue("Xtream Codes" !in page, "legal: never mention Xtream Codes")
         assertTrue("<script" !in page)
 

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
@@ -153,6 +154,9 @@ fun SettingsScreen(actions: AppActions) {
                             )
                         }
                         SettingRow(Icons.Rounded.Add, stringResource(R.string.add_list), onClick = actions::addSource)
+                        if (!isTv && sources.isNotEmpty()) {
+                            SettingRow(Icons.Rounded.Tv, stringResource(R.string.send_tv_title), subtitle = stringResource(R.string.send_tv_desc), onClick = actions::openSendToTv)
+                        }
                         if (offerPhone) SettingRow(Icons.Rounded.QrCode2, stringResource(R.string.pair_title), subtitle = stringResource(R.string.pair_use_phone), onClick = actions::addSourceWithPhone)
                     }
                 }
@@ -370,7 +374,7 @@ private fun SourceRow(s: Source, isActive: Boolean, onUse: () -> Unit, onEdit: (
                 }
             }
             Text(
-                (if (s.type == SourceType.XTREAM) "Xtream · " else "M3U · ") + s.url.substringAfter("://").substringBefore('/'),
+                (if (s.type == SourceType.XTREAM) "Server · " else "M3U · ") + s.url.substringAfter("://").substringBefore('/'),
                 style = MaterialTheme.typography.bodySmall, color = Palette.TextSecondary,
             )
         }

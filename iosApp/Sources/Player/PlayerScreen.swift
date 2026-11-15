@@ -342,11 +342,9 @@ private struct IOSPlayerContent: View {
             let total = max(vm.duration, 1)
             let value = scrub ?? vm.currentTime
             VStack(spacing: 2) {
-                Slider(value: Binding(get: { min(value, total) }, set: { scrub = $0; poke() }), in: 0...total) { editing in
-                    if !editing, let s = scrub { vm.seek(to: s); scrub = nil }
-                }
-                .tint(Theme.primary)
-                .disabled(!canSeek)
+                SeekBar(value: min(value, total), total: total, enabled: canSeek,
+                        onScrub: { scrub = $0; poke() },
+                        onCommit: { vm.seek(to: $0); scrub = nil; poke() })
                 HStack {
                     Text(Fmt.clock(value)).font(AppFont.labelLarge).foregroundStyle(.white).monospacedDigit()
                     Spacer()
@@ -398,6 +396,88 @@ private struct IOSPlayerContent: View {
         case .subSync:
             DelayDialog(title: "Ritardo sottotitoli", valueMs: vm.subtitleDelayMs, step: 100, onChange: { vm.setSubtitleDelay($0) }, onDismiss: dismiss)
         }
+    }
+}
+
+/// Android's Material 3 seek bar, 1:1: thick track (accent / white 25%), vertical white thumb with a gap on both
+/// sides, stop dot at the end. The whole bar responds like on Android: touch anywhere and drag, or tap to jump.
+/// (The system Slider only moved when the drag started exactly on its small thumb, and a tap on the bar fell
+/// through to the screen and hid the controls.)
+private struct SeekBar: View {
+    let value: Double
+    let total: Double
+    let enabled: Bool
+    let onScrub: (Double) -> Void
+    let onCommit: (Double) -> Void
+
+    @State private var dragging = false
+    private let trackHeight: CGFloat = 16
+    private let thumbWidth: CGFloat = 4
+    private let thumbHeight: CGFloat = 44
+    private let gap: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let fraction = total > 0 ? min(max(value / total, 0), 1) : 0
+            let thumbX = (width - thumbWidth) * fraction // thumb's leading edge
+            let activeWidth = max(0, thumbX - gap)
+            let inactiveStart = thumbX + thumbWidth + gap
+            let inactiveWidth = max(0, width - inactiveStart)
+            ZStack(alignment: .leading) {
+                UnevenRoundedRectangle(cornerRadii: .init(topLeading: 8, bottomLeading: 8, bottomTrailing: 2, topTrailing: 2), style: .continuous)
+                    .fill(Theme.primary)
+                    .frame(width: activeWidth, height: trackHeight)
+                    .opacity(activeWidth > 0 ? 1 : 0)
+                UnevenRoundedRectangle(cornerRadii: .init(topLeading: 2, bottomLeading: 2, bottomTrailing: 8, topTrailing: 8), style: .continuous)
+                    .fill(Color.white.opacity(0.25))
+                    .frame(width: inactiveWidth, height: trackHeight)
+                    .offset(x: inactiveStart)
+                    .opacity(inactiveWidth > 0 ? 1 : 0)
+                if inactiveWidth > 16 { // stop indicator, hidden once the thumb reaches it
+                    Circle().fill(Theme.primary).frame(width: 4, height: 4).offset(x: width - 10)
+                }
+                Capsule().fill(Color.white)
+                    .frame(width: dragging ? 2 : thumbWidth, height: thumbHeight)
+                    .offset(x: thumbX + (dragging ? 1 : 0))
+            }
+            .frame(width: width, height: geo.size.height, alignment: .leading)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        guard enabled, total > 0 else { return }
+                        dragging = true
+                        onScrub(position(at: g.location.x, width: width))
+                    }
+                    .onEnded { g in
+                        guard enabled, total > 0 else { dragging = false; return }
+                        dragging = false
+                        onCommit(position(at: g.location.x, width: width))
+                    }
+            )
+        }
+        .frame(height: thumbHeight)
+        .opacity(enabled ? 1 : 0.38)
+        .animation(.easeOut(duration: 0.12), value: dragging)
+        .accessibilityElement()
+        .accessibilityLabel("Posizione")
+        .accessibilityValue(Fmt.clock(value))
+        .accessibilityAdjustableAction { direction in
+            guard enabled else { return }
+            switch direction {
+            case .increment: onCommit(min(total, value + 10))
+            case .decrement: onCommit(max(0, value - 10))
+            @unknown default: break
+            }
+        }
+    }
+
+    /// Seconds under the finger (the thumb's centre follows it).
+    private func position(at x: CGFloat, width: CGFloat) -> Double {
+        let usable = max(1, width - thumbWidth)
+        let fraction = min(max((x - thumbWidth / 2) / usable, 0), 1)
+        return Double(fraction) * total
     }
 }
 #endif
