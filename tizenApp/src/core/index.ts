@@ -201,6 +201,7 @@ export async function createCore(options: CoreOptions = {}): Promise<Core> {
       pickAudio: (tracks, settings, langs) => Tracks.pickAudio(tracks, settings, languages(langs)),
       pickSubtitle: (tracks, settings, langs, audioLanguage) => Tracks.pickSubtitle(tracks, settings, languages(langs), audioLanguage),
       displayName: (track, index) => Tracks.displayName(track, index),
+      distinct: (tracks, selectedId) => Tracks.distinct(tracks, selectedId),
     },
 
     createZapper: (channels, current) => new ChannelZapper(channels, current),

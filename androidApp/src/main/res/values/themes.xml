@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.StePlayer" parent="android:Theme.Material.NoActionBar">
+    <!-- AppCompat parent with opaque colorPrimary/colorAccent: the Cast device picker (MediaRouter) builds its dialog
+         from the activity theme and crashes on a missing or translucent colorPrimary ("background can not be translucent"). -->
+    <style name="Theme.StePlayer" parent="Theme.AppCompat.NoActionBar">
+        <item name="colorPrimary">@color/surface</item>
+        <item name="colorPrimaryDark">@color/background</item>
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:colorBackground">@color/surface</item>
         <item name="android:windowBackground">@color/background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

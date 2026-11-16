@@ -1,5 +1,13 @@
 package com.steplayer.app
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.activity.SystemBarStyle
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -64,7 +72,12 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Always-dark app: dark system bars whatever the phone theme (the automatic style drew a white
+        // 3-button navigation bar on phones in light mode).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         splash.setKeepOnScreenCondition { startDestination == null }
 
         readGuideRequest(intent)
@@ -88,7 +101,12 @@ class MainActivity : FragmentActivity() {
         setContent {
             StePlayerTheme {
                 CompositionLocalProvider(LocalIsTv provides app.isTv) {
-                    Box(Modifier.fillMaxSize().background(Palette.Background)) {
+                    // Every screen stays clear of the navigation bar (gesture pill or 3-button bar) and of side
+                    // cut-outs in landscape. Consumed here, so screens that pad themselves don't pad twice.
+                    Box(
+                        Modifier.fillMaxSize().background(Palette.Background)
+                            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)),
+                    ) {
                         startDestination?.let { AppNavHost(it, pendingRoute, onRouteHandled = { pendingRoute = null }) }
                     }
                 }

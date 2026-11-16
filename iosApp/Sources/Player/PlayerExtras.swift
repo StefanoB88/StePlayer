@@ -3,7 +3,7 @@ import Shared
 
 /// Android player dialogs (`Sheet` enum in PlayerUi.kt).
 enum PlayerSheet: Equatable {
-    case audio, text, aspect, speed, menu, sleep, audioSync, subSync
+    case audio, text, textTrack, subSize, subColor, subBackground, aspect, speed, menu, sleep, audioSync, subSync
 }
 
 /// Sleep timer choices shared by the iOS dialog and the tvOS transport-bar menu.
@@ -271,5 +271,16 @@ struct BusyDialog: View {
                 }
             }
         }
+    }
+}
+
+/// Subtitle style choices offered in the player (same values as Impostazioni → Sottotitoli).
+enum SubtitleChoices {
+    static let scales: [Float] = [0.75, 1.0, 1.25, 1.5, 2.0]
+    static let colors: [SubtitleColor] = [.white, .yellow]
+    static let backgrounds: [SubtitleBackground] = [.none, .semiTransparent, .opaque]
+    static func colorName(_ c: SubtitleColor) -> String { c == .yellow ? "Giallo" : "Bianco" }
+    static func backgroundName(_ b: SubtitleBackground) -> String {
+        switch b { case .semiTransparent: return "Semitrasparente"; case .opaque: return "Pieno"; default: return "Nessuno" }
     }
 }

@@ -51,6 +51,10 @@ object PlaybackErrors {
     fun unsupported(container: String?) = PlaybackError(PlaybackErrorKind.UNSUPPORTED_FORMAT, "Formato non supportato",
         "Questo dispositivo non riesce a riprodurre il formato${container?.let { " .$it" } ?: ""}.", retryable = false)
 
+    /** The device has no decoder for this stream: names what it cannot play ("il video HEVC 10 bit 3840×2160"). */
+    fun unsupportedMedia(container: String?, what: String) = PlaybackError(PlaybackErrorKind.UNSUPPORTED_FORMAT, "Formato non supportato",
+        "Questo dispositivo non riesce a riprodurre $what${container?.let { " (.$it)" } ?: ""}.", retryable = false)
+
     fun expired() = PlaybackError(PlaybackErrorKind.ACCOUNT_EXPIRED, "Abbonamento scaduto",
         "Il tuo abbonamento risulta scaduto o disattivato dal provider.", retryable = false)
 

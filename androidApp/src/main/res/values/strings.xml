@@ -26,7 +26,7 @@
     <string name="edit_list">Modifica lista</string>
     <string name="tab_xtream">Accesso al server</string>
     <string name="tab_m3u">Lista M3U</string>
-    <string name="field_name">Nome</string>
+    <string name="field_name">Nome lista (qualsiasi cosa)</string>
     <string name="field_server">Server (es. http://server.esempio:8080)</string>
     <string name="field_username">Username</string>
     <string name="field_password">Password</string>
@@ -187,6 +187,8 @@
     <string name="audio">Audio</string>
     <string name="subtitles">Sottotitoli</string>
     <string name="subtitles_off">Disattivati</string>
+    <string name="subtitles_none_available">Nessun sottotitolo in questo contenuto</string>
+    <string name="sub_track">Traccia</string>
     <string name="aspect">Formato</string>
     <string name="aspect_fit">Adatta</string>
     <string name="aspect_fill">Riempi</string>
@@ -198,6 +200,7 @@
     <string name="rewind_10">Indietro 10 secondi</string>
     <string name="forward_10">Avanti 10 secondi</string>
     <string name="pip">Picture in picture</string>
+    <string name="pip_unavailable">Picture-in-picture non disponibile su questo dispositivo in questo momento</string>
     <string name="track_default">Predefinita</string>
     <string name="last_channel">Ultimo canale</string>
     <string name="settings_frame_rate">Adatta frequenza schermo</string>

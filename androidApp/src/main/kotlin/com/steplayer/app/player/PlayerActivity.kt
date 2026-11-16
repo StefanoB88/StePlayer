@@ -44,8 +44,10 @@ class PlayerActivity : FragmentActivity() {
     private var videoBounds: android.graphics.Rect? = null
     /** Left PiP without coming back to the foreground yet: if onStop follows, the PiP window was closed. */
     private var leftPip = false
+    /** PiP really available: not on TV, declared by the system, and not on "low RAM" phones (Android disables it there). */
     private val pipSupported by lazy {
-        !isTv && packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        !isTv && packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
+            !(getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager).isLowRamDevice
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,7 +93,7 @@ class PlayerActivity : FragmentActivity() {
                     PlayerScreen(
                         controller,
                         onBack = { finish() },
-                        onPip = ::enterPip,
+                        onPip = if (pipSupported) ::enterPip else null,
                         onDiagnose = ::openConnectionTest,
                         onStopped = { reason ->
                             android.widget.Toast.makeText(
@@ -261,11 +263,17 @@ class PlayerActivity : FragmentActivity() {
     }
 
     private fun enterPip() {
-        if (!pipSupported) return
+        if (!pipSupported || isFinishing || isInPictureInPictureMode) return
         // Hide the controls first so they don't appear in the shrinking window.
         controller.setPip(true)
-        val ok = runCatching { enterPictureInPictureMode(pipParams()) }.getOrDefault(false)
-        if (!ok) controller.setPip(false)
+        // Some phones refuse PiP at runtime (battery saver, OEM limits, extreme video bounds): stay full screen.
+        val ok = runCatching { enterPictureInPictureMode(pipParams()) }
+            .recoverCatching { enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()) }
+            .getOrDefault(false)
+        if (!ok) {
+            controller.setPip(false)
+            android.widget.Toast.makeText(this, com.steplayer.app.R.string.pip_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onUserLeaveHint() {

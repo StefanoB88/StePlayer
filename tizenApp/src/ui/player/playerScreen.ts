@@ -3,7 +3,7 @@
 // player always closes the stream.
 import type {
   BufferAdvisor, Channel, EpgProgram, Episode, Movie, PlayableStream, PlaybackError, PlayerSettings, RetryPolicy, Series,
-  StallWatchdog, TrackInfo, ChannelZapper,
+  StallWatchdog, SubtitleStyle, TrackInfo, ChannelZapper,
 } from '../../core/api.ts';
 import { ALL_CATEGORY } from '../../core/api.ts';
 import { app, type Screen } from '../app.ts';
@@ -27,6 +27,12 @@ export type PlayRequest =
   | { kind: 'episode'; series: Series; episode: Episode; episodes: Episode[]; startMs: number };
 
 const ASPECTS = ['Adatta', 'Riempi', 'Zoom'];
+
+
+// Subtitle style choices in the player (same values as Impostazioni → Sottotitoli).
+const SUB_SCALES = [0.75, 1, 1.25, 1.5, 2];
+const SUB_COLORS: [string, SubtitleStyle['color']][] = [['Bianco', 'WHITE'], ['Giallo', 'YELLOW']];
+const SUB_BACKGROUNDS: [string, SubtitleStyle['background']][] = [['Nessuno', 'NONE'], ['Semitrasparente', 'SEMI_TRANSPARENT'], ['Pieno', 'OPAQUE']];
 
 export function playerScreen(initial: PlayRequest): Screen {
   const core = app().core;
@@ -375,8 +381,9 @@ export function playerScreen(initial: PlayRequest): Screen {
     const top = h('div', { class: 'row p-top' }, back, t);
     if (isLive() && zapper && zapper.lastChannel) top.appendChild(icn('history', 'Ultimo canale', () => lastChannel(), 'last'));
     if (isLive() && req.kind === 'live' && req.list.length > 1) top.appendChild(icn('list', 'Canali', () => openDrawer(), 'list'));
-    if (engine.audioTracks().length > 1) top.appendChild(icn('audiotrack', 'Audio', () => audioDialog(), 'audio'));
-    if (engine.textTracks().length) top.appendChild(icn('closed_caption', 'Sottotitoli', () => textDialog(), 'text'));
+    if (distinctTracks(engine.audioTracks(), engine.selectedAudio).length > 1) top.appendChild(icn('audiotrack', 'Audio', () => audioDialog(), 'audio'));
+    // Always visible: style and track choice even when the stream has no subtitles (or they load late).
+    top.appendChild(icn('closed_caption', 'Sottotitoli', () => textDialog(), 'text'));
     top.appendChild(icn('aspect_ratio', 'Formato', () => aspectDialog(), 'aspect'));
     top.appendChild(icn('tune', 'Opzioni', () => menu(), 'menu'));
 
@@ -533,16 +540,44 @@ export function playerScreen(initial: PlayRequest): Screen {
   }
 
   // ----- dialogs
+  /** Engine tracks reduced to one per language (shared rules); the one in use always stays. */
+  function distinctTracks<T extends { index: number; language: string | null; label: string | null; channels: number }>(all: T[], sel: number | null): T[] {
+    const keep = core.tracks.distinct(all.map(asInfo), sel != null ? String(sel) : null).map((t) => t.id);
+    return all.filter((t) => keep.indexOf(String(t.index)) >= 0);
+  }
   function audioDialog(): void {
-    const tracks = engine.audioTracks();
     const sel = engine.selectedAudio;
+    const tracks = distinctTracks(engine.audioTracks(), sel);
     optionsDialog('Audio', tracks.map((t, i) => ({ label: core.tracks.displayName(asInfo(t), i), checked: t.index === sel })), (i) => engine.selectAudio(tracks[i].index));
   }
+  /** Subtitles menu: track (when the stream has some) and style, applied live and saved as the default. */
   function textDialog(): void {
-    const tracks = engine.textTracks();
     const sel = engine.selectedText;
+    const tracks = distinctTracks(engine.textTracks(), sel);
+    const st = settings ? settings.subtitleStyle : null;
+    const current = tracks.find((t) => t.index === sel);
+    const entries: [string, () => void][] = [
+      tracks.length
+        ? [`Traccia: ${current ? core.tracks.displayName(asInfo(current), tracks.indexOf(current)) : 'Disattivati'}`, () => trackDialog()]
+        : ['Nessun sottotitolo in questo contenuto', () => textDialog()],
+      [`Dimensione: ${Math.round((st ? st.scale : 1) * 100)}%`, () => choiceDialog('Dimensione', SUB_SCALES.map((v) => [`${Math.round(v * 100)}%`, v] as [string, number]), st ? st.scale : 1, (v) => setStyle({ scale: v }))],
+      [`Colore: ${SUB_COLORS.find((c) => c[1] === (st ? st.color : 'WHITE'))![0]}`, () => choiceDialog('Colore', SUB_COLORS, st ? st.color : 'WHITE', (v) => setStyle({ color: v }))],
+      [`Sfondo: ${SUB_BACKGROUNDS.find((b) => b[1] === (st ? st.background : 'NONE'))![0]}`, () => choiceDialog('Sfondo', SUB_BACKGROUNDS, st ? st.background : 'NONE', (v) => setStyle({ background: v }))],
+    ];
+    menuDialog('Sottotitoli', entries.map((e) => e[0]), (i) => entries[i][1]());
+  }
+  function trackDialog(): void {
+    const sel = engine.selectedText;
+    const tracks = distinctTracks(engine.textTracks(), sel);
     optionsDialog('Sottotitoli', [{ label: 'Disattivati', checked: sel == null }, ...tracks.map((t, i) => ({ label: core.tracks.displayName(asInfo(t), i), checked: t.index === sel }))],
-      (i) => { engine.selectText(i === 0 ? null : tracks[i - 1].index); if (i === 0) subtitleEl.classList.add('hidden'); });
+      (i) => { engine.selectText(i === 0 ? null : tracks[i - 1].index); if (i === 0) subtitleEl.classList.add('hidden'); textDialog(); });
+  }
+  function choiceDialog<T>(title: string, options: [string, T][], selected: T, apply: (v: T) => void): void {
+    optionsDialog(title, options.map(([label, v]) => ({ label, checked: v === selected })), (i) => { apply(options[i][1]); textDialog(); });
+  }
+  function setStyle(change: Partial<SubtitleStyle>): void {
+    if (settings) settings = { ...settings, subtitleStyle: { ...settings.subtitleStyle, ...change } };
+    core.playerPreferences.update((s) => ({ ...s, subtitleStyle: { ...s.subtitleStyle, ...change } })).catch(() => undefined);
   }
   function aspectDialog(): void {
     optionsDialog('Formato', ASPECTS.map((l, i) => ({ label: l, checked: aspect === i })), (i) => {

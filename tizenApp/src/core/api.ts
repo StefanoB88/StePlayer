@@ -301,6 +301,8 @@ export interface Core {
     pickAudio(tracks: TrackInfo[], settings: PlayerSettings, deviceLanguages: string[]): TrackInfo | null;
     pickSubtitle(tracks: TrackInfo[], settings: PlayerSettings, deviceLanguages: string[], audioLanguage: string | null): TrackInfo | null;
     displayName(track: TrackInfo, index: number): string;
+    /** One entry per language (Kotlin Tracks.distinct): the track in use stays. */
+    distinct(tracks: TrackInfo[], selectedId: string | null): TrackInfo[];
   };
 
   createZapper(channels: Channel[], current: Channel): ChannelZapper;

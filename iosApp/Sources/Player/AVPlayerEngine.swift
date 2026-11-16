@@ -40,7 +40,10 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
     var onStall: (() -> Void)?
     var onStateChange: (() -> Void)?
     var bufferProfile: BufferProfile?
-    var subtitleStyle: SubtitleStyle?
+    var subtitleStyle: SubtitleStyle? {
+        // Changed from the player's subtitle menu: restyle the current item live.
+        didSet { if let s = subtitleStyle, let item = player.currentItem { item.textStyleRules = Self.textStyleRules(s) } }
+    }
     /// AVPlayer has no audio/subtitle offset API.
     let supportsDelays = false
     func setDelays(audioMs: Int64, subtitleMs: Int64) {}
@@ -316,11 +319,7 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
 
     func trackInfos() async -> (audio: [TrackInfo], subtitles: [TrackInfo]) {
         func infos(_ group: AVMediaSelectionGroup?, _ options: [AVMediaSelectionOption]) -> [TrackInfo] {
-            options.enumerated().map { i, o in
-                TrackInfo(id: String(i), language: o.extendedLanguageTag ?? o.locale?.identifier, label: o.displayName,
-                          channelCount: 0, isDefault: o == group?.defaultOption,
-                          isForced: o.hasMediaCharacteristic(.containsOnlyForcedSubtitles))
-            }
+            options.enumerated().map { i, o in Self.info(i, o, group) }
         }
         let audio = await options(for: .audible)
         let subs = await options(for: .legible)
@@ -333,17 +332,31 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
         return (group, group.options)
     }
 
-    func audioTracks() async -> [TrackOption] {
-        guard let (group, options) = await options(for: .audible), let item = player.currentItem else { return [] }
-        let selected = item.currentMediaSelection.selectedMediaOption(in: group)
-        return options.enumerated().map { i, o in TrackOption(id: String(i), name: o.displayName, isSelected: o == selected) }
+    /// Shared description of a media option; accessibility characteristics feed the "non udenti" / audiodescrizione variants.
+    private static func info(_ i: Int, _ o: AVMediaSelectionOption, _ group: AVMediaSelectionGroup?) -> TrackInfo {
+        var label = o.displayName
+        if o.hasMediaCharacteristic(.describesMusicAndSoundForAccessibility) || o.hasMediaCharacteristic(.transcribesSpokenDialogForAccessibility) { label += " SDH" }
+        if o.hasMediaCharacteristic(.describesVideoForAccessibility) { label += " audio description" }
+        return TrackInfo(id: String(i), language: o.extendedLanguageTag ?? o.locale?.identifier, label: label,
+                         channelCount: 0, isDefault: o == group?.defaultOption,
+                         isForced: o.hasMediaCharacteristic(.containsOnlyForcedSubtitles))
     }
 
-    func subtitleTracks() async -> [TrackOption] {
-        guard let (group, options) = await options(for: .legible), let item = player.currentItem else { return [] }
+    /// One entry per language (shared rules: the track in use, then the default, stays), named the same way on every platform.
+    private func list(_ characteristic: AVMediaCharacteristic) async -> [TrackOption] {
+        guard let (group, options) = await options(for: characteristic), let item = player.currentItem else { return [] }
         let selected = item.currentMediaSelection.selectedMediaOption(in: group)
-        return options.enumerated().map { i, o in TrackOption(id: String(i), name: o.displayName, isSelected: o == selected) }
+        let infos = options.enumerated().map { i, o in Self.info(i, o, group) }
+        let selectedId = options.firstIndex { $0 == selected }.map(String.init)
+        let kept = Tracks.shared.distinct(tracks: infos, selectedId: selectedId)
+        return kept.enumerated().map { n, t in
+            TrackOption(id: t.id, name: Tracks.shared.displayName(track: t, index: Int32(n)), isSelected: t.id == selectedId)
+        }
     }
+
+    func audioTracks() async -> [TrackOption] { await list(.audible) }
+
+    func subtitleTracks() async -> [TrackOption] { await list(.legible) }
 
     func selectAudio(_ id: String) {
         Task {

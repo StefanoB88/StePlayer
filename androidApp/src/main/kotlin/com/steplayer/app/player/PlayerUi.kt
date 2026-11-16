@@ -1,5 +1,8 @@
 package com.steplayer.app.player
 
+import androidx.compose.foundation.layout.statusBarsPadding
+import com.steplayer.shared.settings.SubtitleBackground
+import com.steplayer.shared.settings.SubtitleColor
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -111,14 +114,14 @@ import kotlinx.coroutines.delay
 private val TopScrim = Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.75f), Color.Transparent))
 private val BottomScrim = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)))
 
-private enum class Sheet { AUDIO, TEXT, ASPECT, SPEED, MENU, SLEEP, AUDIO_SYNC, SUB_SYNC }
+private enum class Sheet { AUDIO, TEXT, TEXT_TRACK, SUB_SIZE, SUB_COLOR, SUB_BG, ASPECT, SPEED, MENU, SLEEP, AUDIO_SYNC, SUB_SYNC }
 
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
     controller: PlayerController,
     onBack: () -> Unit,
-    onPip: () -> Unit,
+    onPip: (() -> Unit)?,
     onDiagnose: () -> Unit = {},
     onStopped: (StopReason) -> Unit = {},
     /** Window bounds of the video area (Picture-in-Picture source rect hint). */
@@ -191,6 +194,19 @@ fun PlayerScreen(
         }
 
         ui.retryIn?.let { secs -> RetryOverlay(secs, ui.retryError, onCancel = controller::cancelRetry) }
+        ui.notice?.let { msg ->
+            LaunchedEffect(msg) { kotlinx.coroutines.delay(6_000); controller.clearNotice() }
+            if (!ui.inPip) {
+                Text(
+                    msg,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 72.dp, start = 24.dp, end = 24.dp)
+                        .widthIn(max = 640.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.75f))
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
+        }
         ui.error?.let { ErrorOverlay(it.title, it.message, onRetry = controller::retry, onBack = onBack, onDiagnose = onDiagnose) }
         if (ui.statsVisible && !ui.inPip) StatsOverlay(ui.stats, Modifier.align(Alignment.TopStart))
         when (val st = ui.session) {
@@ -227,7 +243,64 @@ fun PlayerScreen(
                 onSelect = { i -> controller.selectTrack(C.TRACK_TYPE_AUDIO, ui.audioTracks[i]) },
                 onDismiss = { sheet = null },
             )
-            Sheet.TEXT -> OptionsDialog(
+            Sheet.TEXT -> {
+                // Always reachable while watching: track, style (applied live, saved as the default) and delay.
+                val style = ui.subtitleStyle
+                val off = stringResource(R.string.subtitles_off)
+                val current = ui.textTracks.firstOrNull { it.selected && ui.textEnabled }?.label ?: off
+                val colorLabels = mapOf(SubtitleColor.WHITE to stringResource(R.string.sub_color_white), SubtitleColor.YELLOW to stringResource(R.string.sub_color_yellow))
+                val bgLabels = mapOf(
+                    SubtitleBackground.NONE to stringResource(R.string.sub_bg_none),
+                    SubtitleBackground.SEMI_TRANSPARENT to stringResource(R.string.sub_bg_semi),
+                    SubtitleBackground.OPAQUE to stringResource(R.string.sub_bg_opaque),
+                )
+                val entries = buildList {
+                    if (ui.textTracks.isNotEmpty()) add("${stringResource(R.string.sub_track)}: $current" to Sheet.TEXT_TRACK)
+                    else add(stringResource(R.string.subtitles_none_available) to null)
+                    add("${stringResource(R.string.sub_size)}: ${(style.scale * 100).toInt()}%" to Sheet.SUB_SIZE)
+                    add("${stringResource(R.string.sub_color)}: ${colorLabels[style.color]}" to Sheet.SUB_COLOR)
+                    add("${stringResource(R.string.sub_background)}: ${bgLabels[style.background]}" to Sheet.SUB_BG)
+                    if (ui.textTracks.isNotEmpty()) add(stringResource(R.string.subtitle_sync) to Sheet.SUB_SYNC)
+                }
+                MenuDialog(
+                    stringResource(R.string.subtitles),
+                    entries.map { it.first },
+                    onSelect = { i -> sheet = entries[i].second ?: Sheet.TEXT },
+                    onDismiss = { sheet = null },
+                )
+            }
+            Sheet.SUB_SIZE -> {
+                val sizes = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+                OptionsDialog(
+                    stringResource(R.string.sub_size),
+                    sizes.map { "${(it * 100).toInt()}%" to (ui.subtitleStyle.scale == it) },
+                    onSelect = { i -> controller.updateSubtitleStyle { s -> s.copy(scale = sizes[i]) }; sheet = Sheet.TEXT },
+                    onDismiss = { sheet = Sheet.TEXT },
+                )
+            }
+            Sheet.SUB_COLOR -> {
+                val colors = listOf(SubtitleColor.WHITE to stringResource(R.string.sub_color_white), SubtitleColor.YELLOW to stringResource(R.string.sub_color_yellow))
+                OptionsDialog(
+                    stringResource(R.string.sub_color),
+                    colors.map { (c, label) -> label to (ui.subtitleStyle.color == c) },
+                    onSelect = { i -> controller.updateSubtitleStyle { s -> s.copy(color = colors[i].first) }; sheet = Sheet.TEXT },
+                    onDismiss = { sheet = Sheet.TEXT },
+                )
+            }
+            Sheet.SUB_BG -> {
+                val bgs = listOf(
+                    SubtitleBackground.NONE to stringResource(R.string.sub_bg_none),
+                    SubtitleBackground.SEMI_TRANSPARENT to stringResource(R.string.sub_bg_semi),
+                    SubtitleBackground.OPAQUE to stringResource(R.string.sub_bg_opaque),
+                )
+                OptionsDialog(
+                    stringResource(R.string.sub_background),
+                    bgs.map { (b, label) -> label to (ui.subtitleStyle.background == b) },
+                    onSelect = { i -> controller.updateSubtitleStyle { s -> s.copy(background = bgs[i].first) }; sheet = Sheet.TEXT },
+                    onDismiss = { sheet = Sheet.TEXT },
+                )
+            }
+            Sheet.TEXT_TRACK -> OptionsDialog(
                 stringResource(R.string.subtitles),
                 listOf(stringResource(R.string.subtitles_off) to (!ui.textEnabled || ui.textTracks.none { it.selected })) +
                     ui.textTracks.map { it.label to (it.selected && ui.textEnabled) },
@@ -304,7 +377,7 @@ private fun Controls(
     controller: PlayerController,
     isTv: Boolean,
     onBack: () -> Unit,
-    onPip: () -> Unit,
+    onPip: (() -> Unit)?,
     onSheet: (Sheet) -> Unit,
 ) {
     val playFocus = remember { FocusRequester() }
@@ -330,12 +403,13 @@ private fun Controls(
                 RoundIconButton(Icons.AutoMirrored.Rounded.List, stringResource(R.string.channel_list), { controller.setDrawer(true) }, tint = Color.White)
             }
             if (ui.audioTracks.size > 1) RoundIconButton(Icons.Rounded.Audiotrack, stringResource(R.string.audio), { onSheet(Sheet.AUDIO) }, tint = Color.White)
-            if (ui.textTracks.isNotEmpty()) RoundIconButton(Icons.Rounded.ClosedCaption, stringResource(R.string.subtitles), { onSheet(Sheet.TEXT) }, tint = Color.White)
+            // Always visible: style and track choice even when the stream has no subtitles yet (or tracks load late).
+            RoundIconButton(Icons.Rounded.ClosedCaption, stringResource(R.string.subtitles), { onSheet(Sheet.TEXT) }, tint = Color.White)
             RoundIconButton(Icons.Rounded.AspectRatio, stringResource(R.string.aspect), { onSheet(Sheet.ASPECT) }, tint = Color.White)
             RoundIconButton(Icons.Rounded.Tune, stringResource(R.string.player_menu), { onSheet(Sheet.MENU) }, tint = Color.White)
             if (!ui.isLive) RoundIconButton(Icons.Rounded.Speed, stringResource(R.string.speed), { onSheet(Sheet.SPEED) }, tint = Color.White)
             if (!isTv) {
-                RoundIconButton(Icons.Rounded.PictureInPictureAlt, stringResource(R.string.pip), onPip, tint = Color.White)
+                if (onPip != null) RoundIconButton(Icons.Rounded.PictureInPictureAlt, stringResource(R.string.pip), onPip, tint = Color.White)
                 CastButton()
             }
         }

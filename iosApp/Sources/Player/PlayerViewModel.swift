@@ -23,6 +23,7 @@ final class PlayerViewModel {
     var nextProgram: EpgProgram?
     var audioTracks: [TrackOption] = []
     var subtitleTracks: [TrackOption] = []
+    var subtitleStyle: SubtitleStyle? { settings?.subtitleStyle }
     var nextEpisodeCountdown: Int?
     var shouldDismiss = false
 
@@ -53,6 +54,8 @@ final class PlayerViewModel {
     var subtitleDelayMs: Int64 = 0
     var delayNotice: String?
     var showSyncPanel = false
+    /// tvOS custom (VLC) player: subtitle track and style panel.
+    var showSubtitlePanel = false
     var showConnectionTest = false
     private(set) var settings: PlayerSettings?
 
@@ -933,12 +936,19 @@ final class PlayerViewModel {
     private func autoSelectTracks() async {
         guard let engine else { return }
         if let settings, !(manualAudio && manualSubtitle) {
-            let (audio, subs) = await engine.trackInfos()
+            var (audio, subs) = await engine.trackInfos()
             let languages = Locale.preferredLanguages
             var chosenAudio = audio.first(where: \.isDefault)
             if !manualAudio, let pick = Tracks.shared.pickAudio(tracks: audio, settings: settings, deviceLanguages: languages) {
                 engine.selectAudio(pick.id)
                 chosenAudio = pick
+            }
+            // VLC lists an MKV's subtitles a moment after "ready": wait for them (up to ~6 s), or nothing gets selected.
+            var waited = 0
+            while subs.isEmpty && !manualSubtitle && waited < 12 && self.engine === engine && !isClosed {
+                try? await Task.sleep(for: .milliseconds(500))
+                waited += 1
+                subs = await engine.trackInfos().subtitles
             }
             if !manualSubtitle, !subs.isEmpty {
                 let pick = Tracks.shared.pickSubtitle(tracks: subs, selectedAudio: chosenAudio, settings: settings, deviceLanguages: languages)
@@ -971,6 +981,21 @@ final class PlayerViewModel {
     }
 
     func setAudioDelay(_ ms: Int64) { applyDelays(audio: min(3000, max(-3000, ms)), subtitle: subtitleDelayMs) }
+    /// Subtitle style changed from the player: applied to the engine now and saved as the default.
+    func updateSubtitleStyle(scale: Float? = nil, color: SubtitleColor? = nil, background: SubtitleBackground? = nil) {
+        guard let s = settings else { return }
+        let st = s.subtitleStyle
+        let style = st.doCopy(scale: scale ?? st.scale, color: color ?? st.color, background: background ?? st.background,
+                              edge: st.edge, bottomMarginPercent: st.bottomMarginPercent)
+        let updated = s.doCopy(stillWatchingAfterHours: s.stillWatchingAfterHours, bufferMode: s.bufferMode,
+                               preferredAudioLanguages: s.preferredAudioLanguages, preferredSubtitleLanguage: s.preferredSubtitleLanguage,
+                               subtitleMode: s.subtitleMode, subtitleStyle: style, showStatsOverlay: s.showStatsOverlay)
+        settings = updated
+        engine?.subtitleStyle = style
+        let core = self.core
+        Task { try? await core.playerPreferences.save(settings: updated) }
+    }
+
     func setSubtitleDelay(_ ms: Int64) { applyDelays(audio: audioDelayMs, subtitle: min(10_000, max(-10_000, ms))) }
 
     private func applyDelays(audio: Int64, subtitle: Int64) {

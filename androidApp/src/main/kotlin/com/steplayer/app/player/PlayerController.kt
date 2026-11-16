@@ -1,5 +1,7 @@
 package com.steplayer.app.player
 
+import androidx.media3.common.Format
+import androidx.media3.exoplayer.ExoPlaybackException
 import android.util.Log
 import android.content.Context
 import android.net.Uri
@@ -102,6 +104,8 @@ data class PlayerUiState(
     val isLive: Boolean = false,
     val isPlaying: Boolean = false,
     val buffering: Boolean = true,
+    /** Short message over the video for a few seconds (e.g. an audio track the device cannot decode). */
+    val notice: String? = null,
     /** Position/buffer live in [PlayerController.position] so the 2 Hz updates don't recompose the whole screen. */
     val durationMs: Long = 0,
     /** Final error (retries exhausted or not retryable): shown with a "Riprova" button. */
@@ -207,6 +211,9 @@ class PlayerController(
     private var stoppedInBackground = false
     private var resumePositionMs = 0L
     private var forcedHls = false
+    /** Audio formats whose decoder failed on this device: hidden from the list, another track is used instead. */
+    private val failedAudio = mutableSetOf<String>()
+    private var audioRecoveries = 0
 
     private var retryPolicy: RetryPolicy = core.playback.retryPolicy(false)
     private var watchdog: StallWatchdog = core.playback.stallWatchdog(false)
@@ -305,6 +312,13 @@ class PlayerController(
         manualAudio = false
         manualText = false
         contentKey = null
+        audioRecoveries = 0
+        if (failedAudio.isNotEmpty()) {
+            failedAudio.clear()
+            // Audio may have been switched off for the previous content.
+            exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).clearOverridesOfType(C.TRACK_TYPE_AUDIO).build()
+        }
         retryPolicy = core.playback.retryPolicy(req.kind == PlayKind.LIVE)
         _position.value = PlaybackPosition()
         _ui.update {
@@ -565,6 +579,12 @@ class PlayerController(
         userInteraction()
     }
 
+    /** Subtitle style changed from the player: saved as the default and applied live (settings flow → ui). */
+    fun updateSubtitleStyle(change: (SubtitleStyle) -> SubtitleStyle) {
+        app.appScope.launch { core.playerPreferences.update { it.copy(subtitleStyle = change(it.subtitleStyle)) } }
+        userInteraction()
+    }
+
     fun setSubtitleDelay(ms: Long) {
         val v = ms.coerceIn(-10_000, 10_000)
         offsets.subtitleDelayUs = v * 1000
@@ -633,6 +653,16 @@ class PlayerController(
                 launchStart(s, 0)
                 return
             }
+            // An audio track the device cannot decode (common in MKV files): play another one, or none,
+            // instead of stopping the whole film.
+            val failed = (error as? ExoPlaybackException)?.takeIf { it.type == ExoPlaybackException.TYPE_RENDERER }?.rendererFormat
+            if (failed != null && MimeTypes.isAudio(failed.sampleMimeType) && audioRecoveries < 3) {
+                audioRecoveries++
+                failedAudio += audioKey(failed)
+                _ui.update { it.copy(notice = "Audio ${MediaNames.codec(failed)} non supportato da questo dispositivo: uso un'altra traccia audio.") }
+                launchStart(s, position)
+                return
+            }
             scope.launch { handleFailure(mapError(error, s)) }
         }
     }
@@ -674,7 +704,11 @@ class PlayerController(
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,
         )
-        if (e.errorCode in unsupported || hasCause<UnrecognizedInputFormatException>(e)) return PlaybackErrors.unsupported(s.container)
+        if (e.errorCode in unsupported || hasCause<UnrecognizedInputFormatException>(e)) {
+            // Say what the device cannot decode, when the failing renderer told us.
+            val f = (e as? ExoPlaybackException)?.takeIf { it.type == ExoPlaybackException.TYPE_RENDERER }?.rendererFormat
+            return if (f != null) PlaybackErrors.unsupportedMedia(s.container, MediaNames.describe(f)) else PlaybackErrors.unsupported(s.container)
+        }
         // Ambiguous (immediate EOF, unspecified IO…): ask the server what is going on.
         return diagnosed(PlaybackErrors.unknown())
     }
@@ -906,10 +940,17 @@ class PlayerController(
             for (ti in 0 until group.length) {
                 if (!group.isTrackSupported(ti)) continue
                 val f = group.getTrackFormat(ti)
+                if (group.type == C.TRACK_TYPE_AUDIO && audioKey(f) in failedAudio) continue
                 val info = TrackInfo(
                     id = "$gi:$ti",
                     language = f.language,
-                    label = f.label,
+                    // Role flags from the stream (HLS/DASH/MKV) feed the "non udenti" / "commento" variants.
+                    label = listOfNotNull(
+                        f.label,
+                        "SDH".takeIf { f.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0 },
+                        "commentary".takeIf { f.roleFlags and C.ROLE_FLAG_COMMENTARY != 0 },
+                        "audio description".takeIf { f.roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO != 0 },
+                    ).joinToString(" ").ifEmpty { null },
                     channelCount = f.channelCount.coerceAtLeast(0),
                     isDefault = f.selectionFlags and C.SELECTION_FLAG_DEFAULT != 0,
                     isForced = f.selectionFlags and C.SELECTION_FLAG_FORCED != 0,
@@ -924,6 +965,27 @@ class PlayerController(
                         textInfo += info
                     }
                 }
+            }
+        }
+        // One entry per language (HLS repeats renditions per codec group, MKV often has 5.1 + 2.0 of the same
+        // language); the track in use always stays in the list.
+        fun dedupe(options: MutableList<TrackOption>, infos: MutableList<TrackInfo>) {
+            val selectedId = options.indexOfFirst { it.selected }.takeIf { it >= 0 }?.let { infos[it].id }
+            val keep = TrackPicker.distinct(infos, selectedId).map { it.id }.toSet()
+            val kept = infos.indices.filter { infos[it].id in keep }
+            val o = kept.map { options[it] }; val i = kept.map { infos[it] }
+            options.clear(); options += o.mapIndexed { n, opt -> opt.copy(label = TrackPicker.displayName(i[n], n)) }
+            infos.clear(); infos += i
+        }
+        dedupe(audio, audioInfo)
+        dedupe(text, textInfo)
+        if (failedAudio.isNotEmpty() && audio.none { it.selected }) {
+            // The failing track was the one in use: switch to a working one, or play without audio.
+            if (audio.isEmpty()) {
+                exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build()
+                _ui.update { it.copy(notice = "Nessuna traccia audio di questo contenuto è supportata da questo dispositivo: riproduco senza audio.") }
+            } else {
+                applyTrack(C.TRACK_TYPE_AUDIO, audio.first())
             }
         }
         val textEnabled = !exo.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
@@ -948,6 +1010,10 @@ class PlayerController(
             applyTrack(C.TRACK_TYPE_TEXT, sub?.let { text[textInfo.indexOf(it)] })
         }
     }
+
+    fun clearNotice() = _ui.update { it.copy(notice = null) }
+
+    private fun audioKey(f: Format) = "${f.id}|${f.sampleMimeType}|${f.language}|${f.channelCount}|${f.label}"
 
     /** Manual choice from the picker: remembered for the rest of the session. */
     fun selectTrack(type: Int, option: TrackOption?) {

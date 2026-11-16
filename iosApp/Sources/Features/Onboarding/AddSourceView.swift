@@ -71,7 +71,7 @@ struct AddSourceView: View {
                 error = nil
             }
         }
-        FormField(label: "Nome", text: $name)
+        FormField(label: "Nome lista (qualsiasi cosa)", text: $name)
         if kind == .xtream {
             Text("Accedi con indirizzo, username e password del tuo server").font(AppFont.labelLarge).foregroundStyle(Theme.textSecondary)
             FormField(label: "Server (es. http://server.esempio:8080)", text: $server, keyboard: .url)

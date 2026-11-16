@@ -318,18 +318,16 @@ final class VLCPlayerEngine: NSObject, PlayerEngine {
         guard let player else { return ([], []) }
         return (map(player.audioTrackNames, player.audioTrackIndexes), map(player.videoSubTitlesNames, player.videoSubTitlesIndexes))
     }
-    func audioTracks() async -> [TrackOption] {
-        let infos = await trackInfos().audio
-        return infos.enumerated().map { i, t in
-            TrackOption(id: t.id, name: Tracks.shared.displayName(track: t, index: Int32(i)), isSelected: Int32(t.id) == player?.currentAudioTrackIndex)
+    /// VLC reports only names ("Track 1 - [Italian]"): the shared rules read the language from them and keep one entry per language.
+    private func list(_ infos: [TrackInfo], selected: Int32?) -> [TrackOption] {
+        let selectedId = selected.map { String($0) }
+        let kept = Tracks.shared.distinct(tracks: infos, selectedId: selectedId)
+        return kept.enumerated().map { n, t in
+            TrackOption(id: t.id, name: Tracks.shared.displayName(track: t, index: Int32(n)), isSelected: t.id == selectedId)
         }
     }
-    func subtitleTracks() async -> [TrackOption] {
-        let infos = await trackInfos().subtitles
-        return infos.enumerated().map { i, t in
-            TrackOption(id: t.id, name: Tracks.shared.displayName(track: t, index: Int32(i)), isSelected: Int32(t.id) == player?.currentVideoSubTitleIndex)
-        }
-    }
+    func audioTracks() async -> [TrackOption] { list(await trackInfos().audio, selected: player?.currentAudioTrackIndex) }
+    func subtitleTracks() async -> [TrackOption] { list(await trackInfos().subtitles, selected: player?.currentVideoSubTitleIndex) }
     func selectAudio(_ id: String) { if let i = Int32(id) { player?.currentAudioTrackIndex = i } }
     func selectSubtitle(_ id: String?) { player?.currentVideoSubTitleIndex = id.flatMap { Int32($0) } ?? -1 }
     #else

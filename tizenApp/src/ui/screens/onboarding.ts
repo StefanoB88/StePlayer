@@ -88,7 +88,7 @@ export function addSourceScreen(opts: { editId?: number; onSaved: (id: number, i
   let mode: 'phone' | 'remote' = editing ? 'remote' : 'phone';
   let panel: PhonePanel | null = null;
 
-  const name = textField({ label: 'Nome' });
+  const name = textField({ label: 'Nome lista (qualsiasi cosa)' });
   const server = textField({ label: 'Server (es. http://server.esempio:8080)', type: 'url' });
   const username = textField({ label: 'Username' });
   const password = textField({ label: editing ? 'Password (lascia vuoto per non cambiarla)' : 'Password', type: 'password' });

@@ -282,9 +282,8 @@ private struct IOSPlayerContent: View {
             if vm.audioTracks.count > 1 {
                 RoundIconButton(symbol: "music.note", label: "Audio", tint: .white) { open(.audio) }
             }
-            if !vm.subtitleTracks.isEmpty {
-                RoundIconButton(symbol: "captions.bubble", label: "Sottotitoli", tint: .white) { open(.text) }
-            }
+            // Always visible: style and track choice even when the stream has no subtitles (or they load late).
+            RoundIconButton(symbol: "captions.bubble", label: "Sottotitoli", tint: .white) { open(.text) }
             if avEngine != nil {
                 RoundIconButton(symbol: "aspectratio", label: "Formato", tint: .white) { open(.aspect) }
             }
@@ -365,6 +364,25 @@ private struct IOSPlayerContent: View {
             OptionsDialog(title: "Audio", options: vm.audioTracks.map { ($0.name, $0.isSelected) },
                           onSelect: { vm.selectAudio(vm.audioTracks[$0]) }, onDismiss: dismiss)
         case .text:
+            let st = vm.subtitleStyle
+            let current = vm.subtitleTracks.first { $0.isSelected }?.name ?? "Disattivati"
+            let entries: [(String, PlayerSheet?)] =
+                (vm.subtitleTracks.isEmpty ? [("Nessun sottotitolo in questo contenuto", nil)] : [("Traccia: \(current)", .textTrack)])
+                + [("Dimensione: \(Int((st?.scale ?? 1) * 100))%", .subSize),
+                   ("Colore: \(SubtitleChoices.colorName(st?.color ?? .white))", .subColor),
+                   ("Sfondo: \(SubtitleChoices.backgroundName(st?.background ?? .none))", .subBackground)]
+                + (vm.subtitleTracks.isEmpty ? [] : [("Ritardo sottotitoli", .subSync)])
+            MenuDialog(title: "Sottotitoli", items: entries.map(\.0), onSelect: { i in sheet = entries[i].1 ?? .text }, onDismiss: dismiss)
+        case .subSize:
+            OptionsDialog(title: "Dimensione", options: SubtitleChoices.scales.map { ("\(Int($0 * 100))%", $0 == vm.subtitleStyle?.scale) },
+                          onSelect: { vm.updateSubtitleStyle(scale: SubtitleChoices.scales[$0]); sheet = .text }, onDismiss: { sheet = .text })
+        case .subColor:
+            OptionsDialog(title: "Colore", options: SubtitleChoices.colors.map { (SubtitleChoices.colorName($0), $0 == vm.subtitleStyle?.color) },
+                          onSelect: { vm.updateSubtitleStyle(color: SubtitleChoices.colors[$0]); sheet = .text }, onDismiss: { sheet = .text })
+        case .subBackground:
+            OptionsDialog(title: "Sfondo", options: SubtitleChoices.backgrounds.map { (SubtitleChoices.backgroundName($0), $0 == vm.subtitleStyle?.background) },
+                          onSelect: { vm.updateSubtitleStyle(background: SubtitleChoices.backgrounds[$0]); sheet = .text }, onDismiss: { sheet = .text })
+        case .textTrack:
             OptionsDialog(title: "Sottotitoli",
                           options: [("Disattivati", !vm.subtitleTracks.contains { $0.isSelected })] + vm.subtitleTracks.map { ($0.name, $0.isSelected) },
                           onSelect: { i in vm.selectSubtitle(i == 0 ? nil : vm.subtitleTracks[i - 1]) }, onDismiss: dismiss)
@@ -545,6 +563,7 @@ private struct TVPlayerContent: View {
                 .background(Theme.background)
         }
         .sheet(isPresented: $vm.showSyncPanel) { TVSyncPanel(vm: vm) }
+        .sheet(isPresented: $vm.showSubtitlePanel) { TVSubtitlePanel(vm: vm) }
         .onChange(of: vm.channel?.id) { _, _ in vm.showChannelList = false }
     }
 }
@@ -585,7 +604,7 @@ private struct TVPlayerController: UIViewControllerRepresentable {
 
     /// Transport-bar menus (Android "Opzioni"): channel list, last channel, sleep timer, sync, stats, diagnosis.
     @MainActor static func menu(_ vm: PlayerViewModel, diagnose: @escaping () -> Void) -> [UIMenuElement] {
-        var items: [UIMenuElement] = []
+        var items: [UIMenuElement] = [subtitleMenu(vm)]
         if vm.isLive && vm.zapList.count > 1 {
             items.append(UIAction(title: "Canali", image: UIImage(systemName: "list.bullet")) { _ in vm.showChannelList = true })
         }
@@ -602,6 +621,29 @@ private struct TVPlayerController: UIViewControllerRepresentable {
         })
         items.append(UIAction(title: "Perché si blocca?", image: UIImage(systemName: "stethoscope")) { _ in diagnose() })
         return items
+    }
+
+    /// Always in the transport bar: track (also offered by the system panel when the stream has tracks) and style.
+    @MainActor static func subtitleMenu(_ vm: PlayerViewModel) -> UIMenu {
+        let st = vm.subtitleStyle
+        var children: [UIMenuElement] = []
+        if vm.subtitleTracks.isEmpty {
+            children.append(UIAction(title: "Nessun sottotitolo in questo contenuto", attributes: .disabled) { _ in })
+        } else {
+            children.append(UIMenu(title: "Traccia", options: .singleSelection, children:
+                [UIAction(title: "Disattivati", state: vm.subtitleTracks.contains { $0.isSelected } ? .off : .on) { _ in vm.selectSubtitle(nil) }]
+                + vm.subtitleTracks.map { t in UIAction(title: t.name, state: t.isSelected ? .on : .off) { _ in vm.selectSubtitle(t) } }))
+        }
+        children.append(UIMenu(title: "Dimensione", options: .singleSelection, children: SubtitleChoices.scales.map { v in
+            UIAction(title: "\(Int(v * 100))%", state: st?.scale == v ? .on : .off) { _ in vm.updateSubtitleStyle(scale: v) }
+        }))
+        children.append(UIMenu(title: "Colore", options: .singleSelection, children: SubtitleChoices.colors.map { c in
+            UIAction(title: SubtitleChoices.colorName(c), state: st?.color == c ? .on : .off) { _ in vm.updateSubtitleStyle(color: c) }
+        }))
+        children.append(UIMenu(title: "Sfondo", options: .singleSelection, children: SubtitleChoices.backgrounds.map { b in
+            UIAction(title: SubtitleChoices.backgroundName(b), state: st?.background == b ? .on : .off) { _ in vm.updateSubtitleStyle(background: b) }
+        }))
+        return UIMenu(title: "Sottotitoli", image: UIImage(systemName: "captions.bubble"), children: children)
     }
 }
 
@@ -646,6 +688,40 @@ private struct TVSyncPanel: View {
     }
 }
 
+/// Subtitle track and style on tvOS with the custom (VLC) player: same menu as the iOS player.
+private struct TVSubtitlePanel: View {
+    @Bindable var vm: PlayerViewModel
+    @State private var page: PlayerSheet = .text
+
+    var body: some View {
+        let close = { vm.showSubtitlePanel = false }
+        switch page {
+        case .textTrack:
+            OptionsDialog(title: "Sottotitoli",
+                          options: [("Disattivati", !vm.subtitleTracks.contains { $0.isSelected })] + vm.subtitleTracks.map { ($0.name, $0.isSelected) },
+                          onSelect: { i in vm.selectSubtitle(i == 0 ? nil : vm.subtitleTracks[i - 1]); page = .text }, onDismiss: { page = .text })
+        case .subSize:
+            OptionsDialog(title: "Dimensione", options: SubtitleChoices.scales.map { ("\(Int($0 * 100))%", $0 == vm.subtitleStyle?.scale) },
+                          onSelect: { vm.updateSubtitleStyle(scale: SubtitleChoices.scales[$0]); page = .text }, onDismiss: { page = .text })
+        case .subColor:
+            OptionsDialog(title: "Colore", options: SubtitleChoices.colors.map { (SubtitleChoices.colorName($0), $0 == vm.subtitleStyle?.color) },
+                          onSelect: { vm.updateSubtitleStyle(color: SubtitleChoices.colors[$0]); page = .text }, onDismiss: { page = .text })
+        case .subBackground:
+            OptionsDialog(title: "Sfondo", options: SubtitleChoices.backgrounds.map { (SubtitleChoices.backgroundName($0), $0 == vm.subtitleStyle?.background) },
+                          onSelect: { vm.updateSubtitleStyle(background: SubtitleChoices.backgrounds[$0]); page = .text }, onDismiss: { page = .text })
+        default:
+            let st = vm.subtitleStyle
+            let current = vm.subtitleTracks.first { $0.isSelected }?.name ?? "Disattivati"
+            let entries: [(String, PlayerSheet?)] =
+                (vm.subtitleTracks.isEmpty ? [("Nessun sottotitolo in questo contenuto", nil)] : [("Traccia: \(current)", .textTrack)])
+                + [("Dimensione: \(Int((st?.scale ?? 1) * 100))%", .subSize),
+                   ("Colore: \(SubtitleChoices.colorName(st?.color ?? .white))", .subColor),
+                   ("Sfondo: \(SubtitleChoices.backgroundName(st?.background ?? .none))", .subBackground)]
+            MenuDialog(title: "Sottotitoli", items: entries.map(\.0), onSelect: { i in if let next = entries[i].1 { page = next } }, onDismiss: close)
+        }
+    }
+}
+
 /// Remote-friendly controls for the VLC engine (Android TV overlay layout).
 private struct TVCustomPlayer: View {
     @Bindable var vm: PlayerViewModel
@@ -676,6 +752,7 @@ private struct TVCustomPlayer: View {
                         playPause
                         RoundIconButton(symbol: "goforward.10", label: "Avanti 10 secondi", size: 76, tint: .white) { vm.seek(by: 10) }
                     }
+                    RoundIconButton(symbol: "captions.bubble", label: "Sottotitoli", size: 76, tint: .white) { vm.showSubtitlePanel = true }
                     RoundIconButton(symbol: "waveform", label: "Sincronizzazione audio", size: 76, tint: .white) { vm.showSyncPanel = true }
                     RoundIconButton(symbol: "chart.bar.xaxis", label: "Statistiche", size: 76, tint: .white) { vm.showStats.toggle() }
                     RoundIconButton(symbol: "xmark", label: "Chiudi", size: 76, tint: .white, action: close)

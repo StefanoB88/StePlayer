@@ -61,7 +61,7 @@ ${error?.let { "<div class=\"err\">${esc(it)}</div>" } ?: ""}
 <input type="radio" name="type" value="xtream" id="t-x" ${if (!m3uSelected) "checked" else ""}>
 <input type="radio" name="type" value="m3u" id="t-m" ${if (m3uSelected) "checked" else ""}>
 <div class="tabs"><label for="t-x">Accesso al server</label><label for="t-m">Lista M3U</label></div>
-<label class="f" for="name">Nome (facoltativo)</label>
+<label class="f" for="name">Nome lista (qualsiasi cosa)</label>
 <input class="i" id="name" name="name" placeholder="La mia lista" value="${esc(previous?.name)}">
 <div class="pane px">
 <label class="f" for="server">Server</label>

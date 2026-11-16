@@ -90,7 +90,7 @@ describe('tracks', () => {
   test('normalization and names', () => {
     assert.equal(Tracks.normalize('ITA'), 'it'); assert.equal(Tracks.normalize('Italiano'), 'it');
     assert.equal(Tracks.normalize('ger'), 'de'); assert.equal(Tracks.normalize('und'), null);
-    assert.equal(Tracks.normalize('pt_BR'), 'pt'); assert.equal(Tracks.normalize('xx'), 'xx'); assert.equal(Tracks.normalize('xyz'), null);
+    assert.equal(Tracks.normalize('pt_BR'), 'pt'); assert.equal(Tracks.normalize('xx'), 'xx'); assert.equal(Tracks.normalize('xyz'), 'xyz'); assert.equal(Tracks.normalize('x1z'), null); // unknown 3-letter codes kept for grouping
     assert.equal(Tracks.displayName(ita, 0), 'Italiano · 5.1');
     assert.equal(Tracks.displayName(t('x', null, null), 2), 'Traccia 3');
     assert.equal(Tracks.displayName(t('x', 'Italian', null, 0, false, true), 0), 'Italiano · forzati');
@@ -247,5 +247,29 @@ describe('artwork url', () => {
     const other = 'http://server.esempio:8080/images/poster/1.jpg';
     assert.equal(sizedArtwork(other, 300), other);
     assert.equal(sizedArtwork('https://image.tmdb.org/t/p/original/abc.jpg?v=2', 320), 'https://image.tmdb.org/t/p/w342/abc.jpg?v=2');
+  });
+});
+
+describe('tracks (Kotlin Tracks.distinct / languageOf port)', () => {
+  const t = (id: string, language: string | null, label: string | null, extra: Partial<TrackInfo> = {}): TrackInfo =>
+    ({ id, language, label, channelCount: 0, isDefault: false, isForced: false, ...extra });
+  test('languages from tags and names', () => {
+    assert.equal(Tracks.languageOf(t('1', 'hun', null)), 'hu');
+    assert.equal(Tracks.languageOf(t('1', null, 'Track 1 - [Italian]')), 'it');
+    assert.equal(Tracks.languageOf(t('1', 'und', 'ITA AC3 5.1')), 'it');
+    assert.equal(Tracks.languageOf(t('1', null, 'Commento per il cat')), null);
+    assert.equal(Tracks.displayName(t('1', 'en', 'English SDH'), 0), 'Inglese · non udenti');
+  });
+  test('one entry per language, every language kept', () => {
+    const hls = [t('a', 'it', 'Italiano', { channelCount: 2 }), t('b', 'en', 'English', { channelCount: 2 }), t('c', 'ita', 'Italiano', { channelCount: 6 })];
+    assert.deepEqual(Tracks.distinct(hls).map((x) => x.id), ['c', 'b']);
+    assert.deepEqual(Tracks.distinct(hls, 'a').map((x) => x.id), ['a', 'b']);
+    const subs = [t('1', 'en', 'English'), t('2', 'en', 'English SDH'), t('3', 'en', 'English', { isForced: true }), t('4', 'en', 'English'), t('5', null, null), t('6', null, null)];
+    assert.deepEqual(Tracks.distinct(subs).map((x) => x.id), ['1', '2', '3', '5', '6']);
+  });
+  test('"Sempre" shows something when the language is missing', () => {
+    const always = { ...defaultPlayerSettings(), subtitleMode: 'ALWAYS' as const, preferredSubtitleLanguage: 'it' };
+    assert.equal(Tracks.pickSubtitle([t('en', 'en', null), t('fr', 'fr', null, { isDefault: true })], always, ['it'], null)!.id, 'fr');
+    assert.equal(Tracks.pickSubtitle([t('x', null, null)], always, ['it'], null)!.id, 'x');
   });
 });

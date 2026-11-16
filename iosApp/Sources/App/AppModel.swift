@@ -114,6 +114,13 @@ final class AppModel {
         #endif
         Task { @MainActor [weak self] in
             guard let self else { return }
+            // `STEPLAYER_DEMO_SUBS=always`: subtitles on "Sempre" (checks automatic subtitle selection on a fresh install).
+            if env["STEPLAYER_DEMO_SUBS"] == "always", let s = try? await core.playerPreferences.current() {
+                let updated = s.doCopy(stillWatchingAfterHours: s.stillWatchingAfterHours, bufferMode: s.bufferMode,
+                                       preferredAudioLanguages: s.preferredAudioLanguages, preferredSubtitleLanguage: "it",
+                                       subtitleMode: .always, subtitleStyle: s.subtitleStyle, showStatsOverlay: s.showStatsOverlay)
+                try? await core.playerPreferences.save(settings: updated)
+            }
             let existing = (try? await core.sources.current()) ?? nil
             if existing == nil {
                 UserDefaults.standard.set(true, forKey: "legalAccepted")
