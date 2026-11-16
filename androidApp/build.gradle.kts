@@ -1,4 +1,12 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+
+// Play upload key: kept outside the repo (default ~/.steplayer-signing/keystore.properties, or -Psteplayer.signing=<file>).
+// Without it, release builds are signed with the debug key for local testing, and Play bundles are refused.
+val uploadKeyFile = file(
+    (findProperty("steplayer.signing") as String?) ?: "${System.getProperty("user.home")}/.steplayer-signing/keystore.properties",
+)
+val uploadKey: Properties? = uploadKeyFile.takeIf { it.isFile }?.let { f -> Properties().apply { f.inputStream().use(::load) } }
 
 plugins {
     alias(libs.plugins.android.application)
@@ -15,9 +23,20 @@ android {
         applicationId = "com.steplayer.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
         vectorDrawables.useSupportLibrary = true
+    }
+
+    signingConfigs {
+        if (uploadKey != null) {
+            create("upload") {
+                storeFile = file(uploadKey.getProperty("storeFile"))
+                storePassword = uploadKey.getProperty("storePassword")
+                keyAlias = uploadKey.getProperty("keyAlias")
+                keyPassword = uploadKey.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -25,8 +44,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // TODO: replace with a real release keystore before publishing.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (uploadKey != null) signingConfigs.getByName("upload") else signingConfigs.getByName("debug")
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -113,3 +131,14 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
     baselineProfile(project(":baselineprofile"))
 }
+
+// A bundle for Google Play must carry the upload key, never the debug one.
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    // Plain local values only: the configuration cache cannot serialise references to the build script.
+    val hasUploadKey = uploadKey != null
+    val uploadKeyPath = uploadKeyFile.path
+    doFirst {
+        check(hasUploadKey) { "Play upload key not found: $uploadKeyPath (see store/README.md)" }
+    }
+}
+

@@ -39,3 +39,11 @@ sfocati. Nomi di categoria neutri ("Demo HLS", "Film aperti").
 Icona "Origami" nella palette "Oro e notte" (oro #FFD25C, ambra #FFA21F, arancio #D1650A, blu notte #0A0F26).
 Unica fonte: `scripts/brand/brand.mjs`; `node scripts/brand/make-brand.mjs` rigenera icone e immagini di tutte le
 piattaforme, `tizenApp/dev/store-assets.mjs` quelle del Seller Office. Le interfacce usano gli stessi colori.
+
+## Bundle per Google Play
+- `./gradlew :androidApp:bundleRelease` → `androidApp/build/outputs/bundle/release/androidApp-release.aab`.
+- Firmato con la **chiave di caricamento** in `~/.steplayer-signing/` (`steplayer-upload.jks` + `keystore.properties`,
+  fuori dal repo). Senza quel file la build del bundle si ferma. Fai un backup sicuro della cartella: con la firma
+  delle app di Google Play la chiave di caricamento si può reimpostare, ma serve una richiesta a Google.
+- Ogni nuova versione: aumentare `versionCode` (e `versionName`) in `androidApp/build.gradle.kts`.
+- Il file `mapping.txt` (R8) va caricato in Play Console → App bundle explorer → Deobfuscation, per leggere i crash.
