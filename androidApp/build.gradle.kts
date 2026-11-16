@@ -18,13 +18,14 @@ plugins {
 android {
     namespace = "com.steplayer.app"
     compileSdk = 36
+    ndkVersion = "27.3.13750724"
 
     defaultConfig {
         applicationId = "com.steplayer.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -45,6 +46,8 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (uploadKey != null) signingConfigs.getByName("upload") else signingConfigs.getByName("debug")
+            // Native symbol tables in the bundle: Play Console can read crashes in the FFmpeg JNI code.
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -130,6 +133,8 @@ dependencies {
     // Installs the Baseline Profile also on sideloaded APKs (TV boxes rarely get them from the Play Store).
     implementation(libs.androidx.profileinstaller)
     baselineProfile(project(":baselineprofile"))
+    // FFmpeg audio decoders (AC-3, E-AC-3, DTS, TrueHD, …): LGPL shared libraries, see decoder-ffmpeg/.
+    implementation(project(":decoder-ffmpeg"))
 }
 
 // A bundle for Google Play must carry the upload key, never the debug one.

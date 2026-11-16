@@ -1,0 +1,8 @@
+FFmpeg source: https://github.com/FFmpeg/FFmpeg (branch release/6.0)
+Revision: 573f2b81ebd97da81def2ba762e81b0328547004
+License: LGPL v2.1 or later (configured without --enable-gpl / --enable-nonfree)
+NDK: 27.3.13750724, API 26, 16 KB page alignment
+Configure options: --target-os=android --enable-shared --disable-static --enable-pic
+  --disable-doc --disable-programs --disable-everything --disable-avdevice --disable-avformat --disable-swscale
+  --disable-postproc --disable-avfilter --disable-network --disable-symver --enable-swresample
+  --disable-v4l2-m2m --disable-vulkan --disable-autodetect --enable-decoder=aac --enable-decoder=aac_latm --enable-decoder=ac3 --enable-decoder=eac3 --enable-decoder=dca --enable-decoder=truehd --enable-decoder=mlp --enable-decoder=mp1 --enable-decoder=mp2 --enable-decoder=mp3 --enable-decoder=flac --enable-decoder=alac --enable-decoder=opus --enable-decoder=vorbis --enable-decoder=amrnb --enable-decoder=amrwb --enable-decoder=pcm_mulaw --enable-decoder=pcm_alaw

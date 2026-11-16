@@ -264,6 +264,7 @@ fun SettingsScreen(actions: AppActions) {
                 item {
                     Section(stringResource(R.string.settings_about)) {
                         SettingRow(Icons.Rounded.Info, "StePlayer", subtitle = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME))
+                        SettingRow(Icons.Rounded.Gavel, stringResource(R.string.settings_licenses), subtitle = stringResource(R.string.settings_licenses_desc), onClick = actions::openLicenses)
                     }
                 }
             }

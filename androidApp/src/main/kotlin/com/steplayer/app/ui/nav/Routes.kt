@@ -24,6 +24,7 @@ object Routes {
     const val CATEGORIES = "categories/{sourceId}/{type}"
     const val CONNTEST = "conntest/{sourceId}"
     const val SUBTITLES = "subtitles"
+    const val LICENSES = "licenses"
     const val SEND_TV = "send_tv"
 }
 
@@ -43,6 +44,7 @@ class AppActions(private val nav: NavHostController, private val context: Contex
     fun openCategories(sourceId: Long, type: ContentType) = nav.navigate("categories/$sourceId/${type.name}")
     fun openConnectionTest(sourceId: Long) = nav.navigate("conntest/$sourceId")
     fun openSubtitleSettings() = nav.navigate(Routes.SUBTITLES)
+    fun openLicenses() = nav.navigate(Routes.LICENSES)
     fun openSendToTv() = nav.navigate(Routes.SEND_TV)
     fun addSource() = nav.navigate("add_source?editId=-1&first=false")
     fun addSourceWithPhone() = nav.navigate("add_source?editId=-1&first=false&phone=true")

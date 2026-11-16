@@ -244,7 +244,12 @@ class PlayerController(
 
     private fun buildExo(profile: BufferProfile): ExoPlayer {
         val renderers = SyncRenderersFactory(context, offsets)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            // FFmpeg audio (decoder-ffmpeg): first on phones and tablets (uniform AC-3/E-AC-3/DTS/TrueHD decoding,
+            // also where the chip claims a codec and then fails); after the system decoders on TV boxes, so Dolby/DTS
+            // passthrough to amplifiers and soundbars keeps working.
+            .setExtensionRendererMode(
+                if (app.isTv) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER,
+            )
             .setEnableDecoderFallback(true)
         if (app.prefs.softwareDecoder.value) {
             renderers.setMediaCodecSelector(

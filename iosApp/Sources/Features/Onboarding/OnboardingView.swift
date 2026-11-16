@@ -9,7 +9,7 @@ enum Legal {
     static let privacy = "Tutti i dati restano sul tuo dispositivo. Le password sono cifrate nel Portachiavi di iOS. Nessun account, nessun tracciamento."
     static let privacySettings = "StePlayer non raccoglie alcun dato. Liste, preferiti, cronologia e download restano solo su questo dispositivo."
     static let affiliation = "StePlayer non è affiliato con alcun provider e non fornisce contenuti, liste o abbonamenti."
-    static let openSource = "StePlayer usa VLCKit e libVLC di VideoLAN, distribuiti con licenza GNU LGPL 2.1. Codice sorgente: https://code.videolan.org/videolan/VLCKit"
+    static let openSource = "StePlayer usa VLCKit e libVLC di VideoLAN (MobileVLCKit 3.7.5, TVVLCKit 3.0, con i decoder FFmpeg inclusi), distribuiti con licenza GNU LGPL 2.1. Codice sorgente: https://code.videolan.org/videolan/VLCKit"
 }
 
 /// Welcome → add list (Android `OnboardingScreen` + `AddSourceScreen`).
