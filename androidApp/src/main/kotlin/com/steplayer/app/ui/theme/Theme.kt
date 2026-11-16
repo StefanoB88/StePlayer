@@ -18,18 +18,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 object Palette {
-    val Background = Color(0xFF0B0D12)
-    val Surface = Color(0xFF141821)
-    val SurfaceElevated = Color(0xFF1C2130)
-    val Outline = Color(0xFF2A3142)
+    // "Oro e notte" (same colours as the Origami app icon): navy surfaces, gold → amber accent.
+    val Background = Color(0xFF0A0E1F)
+    val Surface = Color(0xFF121831)
+    val SurfaceElevated = Color(0xFF1A2140)
+    val Outline = Color(0xFF2B3456)
     val TextPrimary = Color(0xFFF5F7FA)
-    val TextSecondary = Color(0xFF9AA3B2)
-    val Accent = Color(0xFF7C5CFF)
-    val Accent2 = Color(0xFF00D4FF)
+    val TextSecondary = Color(0xFF9DA5BF)
+    val Accent = Color(0xFFFFA21F)
+    val Accent2 = Color(0xFFFFD25C)
+    val AccentDeep = Color(0xFFD1650A)
+    /** Text and icons drawn on the accent (white would not read on gold). */
+    val OnAccent = Color(0xFF1B1204)
     val Live = Color(0xFFFF3B5C)
     val Success = Color(0xFF2ED47A)
 
-    val AccentGradient = Brush.linearGradient(listOf(Accent, Accent2))
+    val AccentGradient = Brush.linearGradient(listOf(Accent2, Accent))
     val ScrimBottom = Brush.verticalGradient(listOf(Color.Transparent, Background.copy(alpha = 0.85f), Background))
     val ScrimLeft = Brush.horizontalGradient(listOf(Background, Background.copy(alpha = 0.6f), Color.Transparent))
 }
@@ -43,9 +47,9 @@ object Dimens {
 
 private val ColorScheme = darkColorScheme(
     primary = Palette.Accent,
-    onPrimary = Color.White,
+    onPrimary = Palette.OnAccent,
     secondary = Palette.Accent2,
-    onSecondary = Color.Black,
+    onSecondary = Palette.OnAccent,
     tertiary = Palette.Accent2,
     background = Palette.Background,
     onBackground = Palette.TextPrimary,

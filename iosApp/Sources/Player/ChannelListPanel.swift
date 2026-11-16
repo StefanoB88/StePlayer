@@ -107,7 +107,7 @@ struct ZapBanner: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
                         if let num = ch.num {
-                            Text("\(num.int32Value)  ").font(AppFont.titleMedium).foregroundStyle(Theme.cyan)
+                            Text("\(num.int32Value)  ").font(AppFont.titleMedium).foregroundStyle(Theme.accent2)
                         }
                         Text(ch.name).font(AppFont.titleMedium).foregroundStyle(Theme.textPrimary).lineLimit(1)
                     }

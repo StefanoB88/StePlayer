@@ -186,7 +186,7 @@ struct SegmentedTabs: View {
             ForEach(options.indices, id: \.self) { i in
                 let sel = i == selected
                 Button { onSelect(i) } label: {
-                    Text(options[i]).font(AppFont.labelLarge).foregroundStyle(sel ? Color.white : Theme.textSecondary)
+                    Text(options[i]).font(AppFont.labelLarge).foregroundStyle(sel ? Theme.onAccent : Theme.textSecondary)
                         .lineLimit(1).minimumScaleFactor(0.8)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)

@@ -84,7 +84,7 @@ struct PairingPanel: View {
             Text("2. Inquadra il codice con la fotocamera").font(AppFont.bodyLarge)
             Text("3. Inserisci i dati e premi Invia").font(AppFont.bodyLarge)
             Spacer().frame(height: 12)
-            Text(url).font(AppFont.titleMedium).foregroundStyle(Theme.cyan)
+            Text(url).font(AppFont.titleMedium).foregroundStyle(Theme.accent2)
             Text("Il codice scade tra \(AFormat.duration(ms: left))").font(AppFont.bodySmall).foregroundStyle(Theme.textSecondary)
         }
         .foregroundStyle(Theme.textPrimary)

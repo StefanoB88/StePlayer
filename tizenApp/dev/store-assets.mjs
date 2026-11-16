@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, statSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { NAVY_BG, iconSvg } from '../../scripts/brand/brand.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, '../store/samsung');
@@ -88,14 +89,10 @@ screenshots.forEach((p, i) => {
 });
 
 // ---------------------------------------------------------------------------------------------- branding
-const ICON_SVG = (size) => `
-<svg width="${size}" height="${size}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#00D4FF"/></linearGradient></defs>
-  <rect x="0" y="0" width="512" height="512" rx="128" fill="url(#g)"/>
-  <path d="M206 160 L368 256 L206 352 Z" fill="#fff" stroke="#fff" stroke-width="28" stroke-linejoin="round"/>
-</svg>`;
+const ICON_SVG = (size) => iconSvg(size, { rounded: true });
 const BASE_CSS = `*{margin:0;padding:0;box-sizing:border-box} body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}`;
-const GLOW_BG = `background:#0B0D12;background-image:radial-gradient(900px 600px at 30% 20%, rgba(124,92,255,.38), transparent 70%),radial-gradient(900px 700px at 80% 85%, rgba(0,212,255,.26), transparent 70%)`;
+// Navy like the icon, with a warm glow from the accent.
+const GLOW_BG = `${NAVY_BG.replace(/;background-image:/, ';background-image:radial-gradient(900px 700px at 80% 85%, rgba(255,162,31,.18), transparent 70%),')}`;
 
 async function render(html, w, h, file, transparent = false) {
   const p = await browser.newPage();
@@ -127,7 +124,7 @@ await render(`<div style="width:1920px;height:1080px;position:relative;overflow:
     box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.08);transform:perspective(2400px) rotateY(-14deg);transform-origin:left center">
     <img src="data:image/png;base64,${homeData}" style="width:100%;height:100%;display:block">
   </div>
-  <div style="position:absolute;inset:0;background:linear-gradient(90deg,#0B0D12 0%,rgba(11,13,18,.85) 36%,rgba(11,13,18,0) 62%)"></div>
+  <div style="position:absolute;inset:0;background:linear-gradient(90deg,#0A0E1F 0%,rgba(10,14,31,.85) 36%,rgba(10,14,31,0) 62%)"></div>
 </div>`, 1920, 1080, join(tmp, 'detail-bg.png'));
 toJpeg(join(tmp, 'detail-bg.png'), join(out, 'background-1920x1080.jpg'), 2048);
 

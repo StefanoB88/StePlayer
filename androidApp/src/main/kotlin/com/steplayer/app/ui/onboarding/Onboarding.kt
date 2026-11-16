@@ -1,5 +1,7 @@
 package com.steplayer.app.ui.onboarding
 
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -116,10 +118,7 @@ fun OnboardingScreen(onContinue: () -> Unit) {
                 .padding(28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                Modifier.size(88.dp).clip(RoundedCornerShape(26.dp)).background(Palette.AccentGradient),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(52.dp)) }
+            Image(painterResource(R.drawable.ic_brand), null, modifier = Modifier.size(88.dp))
             Spacer(Modifier.height(28.dp))
             Text(stringResource(R.string.welcome_title), style = MaterialTheme.typography.displaySmall, textAlign = TextAlign.Center)
             Spacer(Modifier.height(12.dp))
@@ -147,7 +146,7 @@ fun OnboardingScreen(onContinue: () -> Unit) {
             ) {
                 Checkbox(
                     checked = confirmed, onCheckedChange = null,
-                    colors = CheckboxDefaults.colors(checkedColor = Palette.Accent, uncheckedColor = Palette.TextSecondary),
+                    colors = CheckboxDefaults.colors(checkedColor = Palette.Accent, uncheckedColor = Palette.TextSecondary, checkmarkColor = Palette.OnAccent),
                 )
                 Spacer(Modifier.size(10.dp))
                 Text(stringResource(R.string.disclaimer_checkbox), style = MaterialTheme.typography.bodyMedium)
@@ -406,7 +405,7 @@ fun SegmentedTabs(options: List<String>, selected: Int, onSelect: (Int) -> Unit)
                     .padding(vertical = 11.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, style = MaterialTheme.typography.labelLarge, color = if (sel) Color.White else Palette.TextSecondary)
+                Text(label, style = MaterialTheme.typography.labelLarge, color = if (sel) Palette.OnAccent else Palette.TextSecondary)
             }
         }
     }
@@ -501,7 +500,7 @@ fun SyncScreen(sourceId: Long, onDone: () -> Unit) {
                     Box(
                         Modifier.size(80.dp).clip(RoundedCornerShape(24.dp)).background(Palette.AccentGradient),
                         contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Rounded.CloudSync, null, tint = Color.White, modifier = Modifier.size(40.dp)) }
+                    ) { Icon(Icons.Rounded.CloudSync, null, tint = Palette.OnAccent, modifier = Modifier.size(40.dp)) }
                     Spacer(Modifier.height(24.dp))
                     Text(stringResource(R.string.sync_title), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(8.dp))

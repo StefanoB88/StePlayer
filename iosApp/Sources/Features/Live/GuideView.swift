@@ -303,7 +303,7 @@ private struct GuideProgramRow: View, Equatable {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 4) {
                             if past && archive {
-                                Image(systemName: "clock.arrow.circlepath").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.cyan)
+                                Image(systemName: "clock.arrow.circlepath").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.accent2)
                             }
                             Text(slot.title).font(AppFont.labelLarge).foregroundStyle(past ? Theme.textSecondary : Theme.textPrimary).lineLimit(1)
                         }

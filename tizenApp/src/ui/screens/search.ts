@@ -192,7 +192,7 @@ export function searchScreen(): Screen {
     const zs: Zone[] = [];
     const terms = r.terms;
     if (r.correctedQuery) {
-      content.appendChild(h('div', { class: 'col', style: 'margin:8px 32px;border-radius:24px;background:rgba(124,92,255,0.12);padding:24px' },
+      content.appendChild(h('div', { class: 'col', style: 'margin:8px 32px;border-radius:24px;background:rgba(255,162,31,0.12);padding:24px' },
         h('div', { class: 't-label-l' }, `Risultati per «${r.correctedQuery}»`),
         h('div', { class: 't-body-s c2' }, `Forse cercavi: ${r.correctedQuery}`)));
     }

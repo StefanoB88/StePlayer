@@ -93,7 +93,7 @@ struct SendToTvView: View {
     private func codeBoxes(_ code: String) -> some View {
         HStack(spacing: 12) {
             ForEach(Array(code.enumerated()), id: \.offset) { _, d in
-                Text(String(d)).font(AppFont.displaySmall).foregroundStyle(Theme.cyan)
+                Text(String(d)).font(AppFont.displaySmall).foregroundStyle(Theme.accent2)
                     .frame(width: 64, height: 80)
                     .background(Theme.surfaceElevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }

@@ -13,20 +13,24 @@ extension Color {
 /// Design tokens, identical to the Android app (`ui/theme/Theme.kt` → Palette / Dimens / Typography).
 enum Theme {
     // Palette
-    static let background = Color(hex: 0x0B0D12)
-    static let surface = Color(hex: 0x141821)
-    static let surfaceElevated = Color(hex: 0x1C2130)
-    static let outline = Color(hex: 0x2A3142)
+    // "Oro e notte" (same colours as the Origami app icon): navy surfaces, gold → amber accent.
+    static let background = Color(hex: 0x0A0E1F)
+    static let surface = Color(hex: 0x121831)
+    static let surfaceElevated = Color(hex: 0x1A2140)
+    static let outline = Color(hex: 0x2B3456)
     static let textPrimary = Color(hex: 0xF5F7FA)
-    static let textSecondary = Color(hex: 0x9AA3B2)
-    static let primary = Color(hex: 0x7C5CFF)   // Accent
-    static let cyan = Color(hex: 0x00D4FF)      // Accent2
+    static let textSecondary = Color(hex: 0x9DA5BF)
+    static let primary = Color(hex: 0xFFA21F)   // Accent (amber)
+    static let accent2 = Color(hex: 0xFFD25C)   // Accent2 (gold)
+    static let accentDeep = Color(hex: 0xD1650A)
+    /// Text and icons drawn on the accent (white would not read on gold).
+    static let onAccent = Color(hex: 0x1B1204)
     static let live = Color(hex: 0xFF3B5C)
     static let success = Color(hex: 0x2ED47A)
     static let warning = Color(hex: 0xFFB020)
     static let star = Color(hex: 0xFFC542)
 
-    static let accentGradient = LinearGradient(colors: [primary, cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let accentGradient = LinearGradient(colors: [accent2, primary], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let scrimBottom = LinearGradient(colors: [.clear, background.opacity(0.85), background], startPoint: .top, endPoint: .bottom)
     static let scrimLeft = LinearGradient(colors: [background, background.opacity(0.6), .clear], startPoint: .leading, endPoint: .trailing)
 
@@ -116,4 +120,30 @@ extension View {
 
 extension String {
     var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
+/// The StePlayer mark ("Origami"): three folded facets on a navy squircle, same drawing as the app icon.
+struct BrandMark: View {
+    var size: CGFloat
+
+    var body: some View {
+        Canvas { ctx, sz in
+            let s = sz.width / 100
+            let bg = Path(roundedRect: CGRect(origin: .zero, size: sz), cornerRadius: 23 * s, style: .continuous)
+            ctx.fill(bg, with: .radialGradient(Gradient(colors: [Color(hex: 0x1C2550), Color(hex: 0x0A0F26)]),
+                                               center: CGPoint(x: 30 * s, y: 20 * s), startRadius: 0, endRadius: 100 * s))
+            func facet(_ points: [CGPoint], _ color: Color) {
+                var p = Path()
+                p.addLines(points.map { CGPoint(x: $0.x * s, y: $0.y * s) })
+                p.closeSubpath()
+                ctx.fill(p, with: .color(color))
+                ctx.stroke(p, with: .color(color), style: StrokeStyle(lineWidth: 3 * s, lineJoin: .round))
+            }
+            facet([CGPoint(x: 33, y: 23), CGPoint(x: 77, y: 50), CGPoint(x: 46, y: 50)], Theme.accent2)
+            facet([CGPoint(x: 33, y: 77), CGPoint(x: 77, y: 50), CGPoint(x: 46, y: 50)], Theme.primary)
+            facet([CGPoint(x: 33, y: 23), CGPoint(x: 46, y: 50), CGPoint(x: 33, y: 77)], Theme.accentDeep)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
 }

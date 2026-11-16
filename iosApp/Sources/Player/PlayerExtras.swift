@@ -174,7 +174,7 @@ struct RetryOverlay: View {
                 Spacer().frame(height: 16)
                 Text("Riconnessione…").font(AppFont.titleMedium).foregroundStyle(.white)
                 Spacer().frame(height: 10)
-                Text("Riprovo tra \(seconds) s…").font(AppFont.labelLarge).foregroundStyle(Theme.cyan).monospacedDigit()
+                Text("Riprovo tra \(seconds) s…").font(AppFont.labelLarge).foregroundStyle(Theme.accent2).monospacedDigit()
                 Spacer().frame(height: 18)
                 SecondaryButton(text: "Annulla", action: onCancel)
             }
@@ -191,7 +191,7 @@ struct NextEpisodePrompt: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Prossimo episodio tra \(countdown) s").font(AppFont.labelLarge).foregroundStyle(Theme.cyan).monospacedDigit()
+            Text("Prossimo episodio tra \(countdown) s").font(AppFont.labelLarge).foregroundStyle(Theme.accent2).monospacedDigit()
             Spacer().frame(height: 4)
             Text("S\(episode.season) E\(episode.number) · \(episode.title)").font(AppFont.titleMedium).foregroundStyle(Theme.textPrimary).lineLimit(2)
             Spacer().frame(height: 12)

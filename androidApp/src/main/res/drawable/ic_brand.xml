@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- StePlayer mark ("Origami", Oro e notte): three folded facets on a navy squircle. Same drawing as the app icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="100dp" android:height="100dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+    <path android:pathData="M23,0h54a23,23 0,0 1,23 23v54a23,23 0,0 1,-23 23h-54a23,23 0,0 1,-23 -23v-54a23,23 0,0 1,23 -23z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="30" android:centerY="20" android:gradientRadius="100">
+                <item android:offset="0" android:color="#FF1C2550" />
+                <item android:offset="1" android:color="#FF0A0F26" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M33,23L77,50L46,50Z" android:fillColor="#FFFFD25C" android:strokeColor="#FFFFD25C" android:strokeWidth="3" android:strokeLineJoin="round" />
+    <path android:pathData="M33,77L77,50L46,50Z" android:fillColor="#FFFFA21F" android:strokeColor="#FFFFA21F" android:strokeWidth="3" android:strokeLineJoin="round" />
+    <path android:pathData="M33,23L46,50L33,77Z" android:fillColor="#FFD1650A" android:strokeColor="#FFD1650A" android:strokeWidth="3" android:strokeLineJoin="round" />
+</vector>

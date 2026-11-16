@@ -5,6 +5,7 @@ import { h, icon } from './dom.ts';
 import { ElementsZone, FocusScope, type Zone } from './focus.ts';
 import type { KeyPress } from './keys.ts';
 import { exitApp } from './keys.ts';
+import { brandMark } from './components.ts';
 import { actions } from './actions.ts';
 import { homeTab } from './screens/home.ts';
 import { liveTab } from './screens/live.ts';
@@ -44,7 +45,7 @@ export class Shell implements Screen {
   private pendingContentFocus = true;
 
   constructor() {
-    this.rail = h('div', { class: 'rail' }, h('div', { class: 'logo' }, 'S'));
+    this.rail = h('div', { class: 'rail' }, brandMark(88, '', 'logo'));
     this.rail.appendChild(this.railItem('search', 'Cerca', () => actions.openSearch()));
     for (const t of TABS) {
       const item = this.railItem(t.icon, t.label, () => this.select(t.id, true));

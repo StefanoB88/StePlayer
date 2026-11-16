@@ -8,6 +8,7 @@ Materiali per App Store, Google Play e Samsung Seller Office. Niente di questa c
   (repo `steplayerwebsite`). Le app restano vuote al primo avvio: nessuna lista precaricata.
 - `app-store-review-notes.md` — testo per le App Review Notes (Apple).
 - `google-play-listing.md` — titolo, descrizione breve e completa senza marchi di terzi.
+- `google-play/` — icona 512×512 e grafica in primo piano 1024×500 per la scheda Play.
 - `samsung-test-information.md` — campo "Test Information" del Seller Office.
 - `samsung-app-description.md` — contenuto per il modello "App Description" di Samsung.
 - `samsung/` — immagini per il Seller Office (icona, logo, sfondi, screenshot), vedi `samsung/README.md`.
@@ -31,3 +32,8 @@ sfocati. Nomi di categoria neutri ("Demo HLS", "Film aperti").
 - Avviso legale obbligatorio al primo avvio (3 punti) con "Ho capito e accetto", attivo solo dopo la spunta.
 - TV Samsung: tasto RETURN gestito (Home → uscita diretta a Smart Hub, voce 13 della checklist), salvaschermo disattivato solo durante la
   riproduzione, avviso quando la rete è assente, errori di rete con nuovi tentativi automatici.
+
+## Icona e colori
+Icona "Origami" nella palette "Oro e notte" (oro #FFD25C, ambra #FFA21F, arancio #D1650A, blu notte #0A0F26).
+Unica fonte: `scripts/brand/brand.mjs`; `node scripts/brand/make-brand.mjs` rigenera icone e immagini di tutte le
+piattaforme, `tizenApp/dev/store-assets.mjs` quelle del Seller Office. Le interfacce usano gli stessi colori.

@@ -167,11 +167,7 @@ private struct NavRail: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Text("S")
-                .font(AppFont.titleLarge)
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            BrandMark(size: 44)
             Spacer().frame(height: 16)
             RailItem(symbol: "magnifyingglass", label: "Cerca", selected: false) { app.open(.search) }
             ForEach(AppTab.visible, id: \.self) { tab in

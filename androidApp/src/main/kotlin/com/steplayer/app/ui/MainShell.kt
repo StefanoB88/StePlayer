@@ -1,5 +1,7 @@
 package com.steplayer.app.ui
 
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -182,12 +184,7 @@ private fun NavRail(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(
-            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Palette.AccentGradient),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("S", style = MaterialTheme.typography.titleLarge, color = Color.White)
-        }
+        Image(painterResource(R.drawable.ic_brand), null, modifier = Modifier.size(44.dp))
         Spacer(Modifier.height(16.dp))
         RailItem(Icons.Rounded.Search, stringResource(R.string.nav_search), false) { actions.openSearch() }
         tabs.forEach { tab ->

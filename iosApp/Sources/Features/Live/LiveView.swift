@@ -211,7 +211,7 @@ struct ChannelRow: View, Equatable {
                         Text(item.name).font(AppFont.titleSmall).foregroundStyle(Theme.textPrimary).lineLimit(1)
                         if item.hasArchive {
                             Image(systemName: "clock.arrow.circlepath").font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Theme.cyan).padding(.leading, 6)
+                                .foregroundStyle(Theme.accent2).padding(.leading, 6)
                                 .accessibilityLabel("Replay")
                         }
                     }

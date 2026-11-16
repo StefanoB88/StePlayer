@@ -99,8 +99,8 @@ export function homeTab(switchTab: (t: TabId) => void): Tab {
     const info = h('div', { class: 'col', style: 'position:absolute;left:48px;bottom:40px;width:50%' }, title, subtitle, buttons, dots);
     const box = h('div', { style: 'position:relative;height:840px;overflow:hidden' },
       imgBox,
-      h('div', { style: 'position:absolute;left:0;top:0;right:0;bottom:0;background:linear-gradient(transparent, rgba(11,13,18,0.85) 70%, #0B0D12)' }),
-      h('div', { style: 'position:absolute;left:0;top:0;right:0;bottom:0;background:linear-gradient(90deg, #0B0D12, rgba(11,13,18,0.6) 40%, transparent 75%)' }),
+      h('div', { style: 'position:absolute;left:0;top:0;right:0;bottom:0;background:linear-gradient(transparent, rgba(10,14,31,0.85) 70%, #0A0E1F)' }),
+      h('div', { style: 'position:absolute;left:0;top:0;right:0;bottom:0;background:linear-gradient(90deg, #0A0E1F, rgba(10,14,31,0.6) 40%, transparent 75%)' }),
       info);
     const zone = new ElementsZone(buttons, { only: 'x', onFocus: () => ensureVisible(box, scroller, 'y', 0) });
     (zone as unknown as { hero: boolean }).hero = true;

@@ -146,7 +146,7 @@ private struct Gauge: View {
             ZStack {
                 Circle().stroke(Theme.surfaceElevated, lineWidth: 8)
                 Circle().trim(from: 0, to: CGFloat(min(1, max(0, (mbps ?? 0) / 50))))
-                    .stroke(Theme.cyan, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .stroke(Theme.accent2, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text(mbps.map { String(format: "%.1f", $0).replacingOccurrences(of: ".", with: ",") } ?? "—")
                     .font(AppFont.titleLarge).foregroundStyle(Theme.textPrimary)

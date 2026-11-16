@@ -107,7 +107,7 @@ fun <T> ChoiceRow(title: String, options: List<Pair<T, String>>, selected: T, on
                     Text(
                         label,
                         style = ChipTextStyle(),
-                        color = if (sel) Color.White else Palette.TextSecondary,
+                        color = if (sel) Palette.OnAccent else Palette.TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

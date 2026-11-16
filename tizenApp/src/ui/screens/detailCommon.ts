@@ -8,7 +8,7 @@ export function backdrop(image: string | null, title: string, height: number): H
   const art = artImage(image, title, { initials: false });
   art.style.position = 'absolute'; art.style.left = '0'; art.style.top = '0'; art.style.width = '100%'; art.style.height = '100%';
   return h('div', { style: `position:relative;height:${height}px;overflow:hidden` }, art,
-    h('div', { style: 'position:absolute;left:0;top:0;right:0;bottom:0;background:linear-gradient(transparent, rgba(11,13,18,0.85) 70%, #0B0D12)' }));
+    h('div', { style: 'position:absolute;left:0;top:0;right:0;bottom:0;background:linear-gradient(transparent, rgba(10,14,31,0.85) 70%, #0A0E1F)' }));
 }
 
 export function metaLine(label: string, value: string | null | undefined): HTMLElement | null {
@@ -48,7 +48,7 @@ export function detailTopBar(onBack: () => void) {
 export function detailHero(image: string | null, poster: string | null, title: string, posterWidth: number, height: number): { el: HTMLElement; column: HTMLElement } {
   const bd = backdrop(image, title, 760);
   bd.style.position = 'absolute'; bd.style.left = '0'; bd.style.top = '0'; bd.style.right = '0';
-  const leftScrim = h('div', { style: 'position:absolute;left:0;top:0;right:0;height:760px;background:linear-gradient(90deg, #0B0D12, rgba(11,13,18,0.6) 45%, transparent 80%)' });
+  const leftScrim = h('div', { style: 'position:absolute;left:0;top:0;right:0;height:760px;background:linear-gradient(90deg, #0A0E1F, rgba(10,14,31,0.6) 45%, transparent 80%)' });
   const p = artImage(poster, title);
   p.style.paddingTop = '150%';
   const posterBox = h('div', { style: `width:${posterWidth}px;flex:0 0 auto;border-radius:28px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.5)` }, p);

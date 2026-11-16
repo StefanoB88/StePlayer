@@ -343,7 +343,7 @@ enum SearchHighlight {
                 let start = attributed.index(attributed.startIndex, offsetByCharacters: i)
                 let end = attributed.index(start, offsetByCharacters: len)
                 attributed[start..<end].font = AppFont.titleSmall.weight(.heavy)
-                attributed[start..<end].foregroundColor = Theme.cyan
+                attributed[start..<end].foregroundColor = Theme.accent2
             }
             i = j
         }

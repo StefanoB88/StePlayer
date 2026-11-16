@@ -43,11 +43,7 @@ struct WelcomeView: View {
                 .allowsHitTesting(false)
             ScrollView {
                 VStack(spacing: 0) {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 42, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 88, height: 88)
-                        .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    BrandMark(size: 88)
                     Spacer().frame(height: 28)
                     Text("Benvenuto in StePlayer").font(AppFont.displaySmall).foregroundStyle(Theme.textPrimary)
                         .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
@@ -93,7 +89,7 @@ struct InfoCard: View {
     let text: String
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol).font(.system(size: 19)).foregroundStyle(Theme.cyan).frame(width: 22)
+            Image(systemName: symbol).font(.system(size: 19)).foregroundStyle(Theme.accent2).frame(width: 22)
             Text(text).font(AppFont.bodyMedium).foregroundStyle(Theme.textPrimary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -127,7 +123,7 @@ struct SyncProgressView: View {
             } else {
                 Image(systemName: "arrow.triangle.2.circlepath.icloud")
                     .font(.system(size: 36, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .frame(width: 80, height: 80)
                     .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 Spacer().frame(height: 24)

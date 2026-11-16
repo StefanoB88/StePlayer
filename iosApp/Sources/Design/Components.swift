@@ -283,7 +283,7 @@ struct CategoryChips: View {
                         Button { onSelect(item.id) } label: {
                             Text(item.title)
                                 .font(AppFont.labelLarge)
-                                .foregroundStyle(isSel ? Color.white : Theme.textSecondary)
+                                .foregroundStyle(isSel ? Theme.onAccent : Theme.textSecondary)
                                 .lineLimit(1)
                                 .padding(.horizontal, 16).padding(.vertical, 9)
                                 .background {
@@ -335,7 +335,7 @@ struct PrimaryButton: View {
                 if let icon { Image(systemName: icon).font(.system(size: 17, weight: .semibold)) }
                 Text(text).font(AppFont.labelLarge.weight(.bold)).lineLimit(1).minimumScaleFactor(0.85)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(enabled ? Theme.onAccent : Color.white)
             .padding(.horizontal, 22).padding(.vertical, 13)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .background {
@@ -565,7 +565,7 @@ struct AirPlayButton: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let v = AVRoutePickerView()
         v.tintColor = tint
-        v.activeTintColor = UIColor(Theme.cyan)
+        v.activeTintColor = UIColor(Theme.accent2)
         v.prioritizesVideoDevices = true
         return v
     }

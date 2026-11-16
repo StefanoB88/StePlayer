@@ -160,7 +160,7 @@ fun SendToTvScreen(actions: AppActions) {
                         ) {
                             Checkbox(
                                 checked = checked, onCheckedChange = null,
-                                colors = CheckboxDefaults.colors(checkedColor = Palette.Accent, uncheckedColor = Palette.TextSecondary),
+                                colors = CheckboxDefaults.colors(checkedColor = Palette.Accent, uncheckedColor = Palette.TextSecondary, checkmarkColor = Palette.OnAccent),
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(src.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 10.dp))

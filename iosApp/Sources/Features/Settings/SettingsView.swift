@@ -234,7 +234,7 @@ struct ChoiceRow<T: Equatable>: View {
                     let (value, label) = options[i]
                     let sel = value == selected
                     Button { onSelect(value) } label: {
-                        Text(label).font(AppFont.labelLarge).foregroundStyle(sel ? Color.white : Theme.textSecondary)
+                        Text(label).font(AppFont.labelLarge).foregroundStyle(sel ? Theme.onAccent : Theme.textSecondary)
                             .lineLimit(1)
                             .padding(.horizontal, 14).padding(.vertical, 8)
                             .background { if sel { Capsule().fill(Theme.accentGradient) } else { Capsule().fill(Theme.surfaceElevated) } }

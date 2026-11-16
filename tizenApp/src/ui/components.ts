@@ -35,6 +35,20 @@ export function artImage(url: string | null | undefined, title: string, opts: { 
   return box;
 }
 
+/** The StePlayer mark ("Origami"): same drawing as the app icon (scripts/brand/brand.mjs). */
+const BRAND_SVG = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="brandBg" cx=".3" cy=".2" r="1">'
+  + '<stop offset="0" stop-color="#1C2550"/><stop offset="1" stop-color="#0A0F26"/></radialGradient></defs>'
+  + '<rect width="100" height="100" rx="23" fill="url(#brandBg)"/>'
+  + '<path d="M33 23 L77 50 L46 50 Z" fill="#FFD25C" stroke="#FFD25C" stroke-width="3" stroke-linejoin="round"/>'
+  + '<path d="M33 77 L77 50 L46 50 Z" fill="#FFA21F" stroke="#FFA21F" stroke-width="3" stroke-linejoin="round"/>'
+  + '<path d="M33 23 L46 50 L33 77 Z" fill="#D1650A" stroke="#D1650A" stroke-width="3" stroke-linejoin="round"/></svg>';
+
+export function brandMark(size: number, style = '', cls = 'brand'): HTMLElement {
+  const el = h('div', { class: cls, style: `width:${size}px;height:${size}px;flex:0 0 auto;${style}` });
+  el.innerHTML = BRAND_SVG;
+  return el;
+}
+
 // Images load only when they are about to enter the screen (a Home row builds 30 cards, ~6 are visible):
 // fewer downloads and JPEG decodes on the TV's weak CPU. IntersectionObserver follows transforms (tracks).
 let observer: IntersectionObserver | null = null;

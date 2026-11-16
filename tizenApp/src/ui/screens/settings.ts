@@ -245,7 +245,7 @@ function subtitlesScreen(): Screen {
     const idx = zone.current ? zone.items().indexOf(zone.current) : -1;
     const set = async (fn: (x: PlayerSettings) => PlayerSettings) => { await core.playerPreferences.update(fn); render(); };
     clear(column);
-    const preview = h('div', { style: 'height:240px;border-radius:32px;margin-bottom:40px;background:linear-gradient(135deg,#2a3142,#141821);display:flex;align-items:flex-end;justify-content:center;padding-bottom:32px' },
+    const preview = h('div', { style: 'height:240px;border-radius:32px;margin-bottom:40px;background:linear-gradient(135deg,#2b3456,#121831);display:flex;align-items:flex-end;justify-content:center;padding-bottom:32px' },
       h('span', { style: subtitleCss(st) }, 'Questo è un esempio di sottotitolo'));
     column.append(preview, sectionBox('Sottotitoli', [
       choiceRow<SubtitleMode>('Modalità', [['OFF', 'Disattivati'], ['AUTO', "Automatici (se l'audio è in un'altra lingua)"], ['ALWAYS', 'Sempre']], s.subtitleMode, (v) => set((x) => ({ ...x, subtitleMode: v }))),

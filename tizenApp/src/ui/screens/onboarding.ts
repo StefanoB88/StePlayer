@@ -3,7 +3,7 @@ import type { SourceInput, SyncState } from '../../core/api.ts';
 import { app, type Screen } from '../app.ts';
 import { h, icon, clear } from '../dom.ts';
 import { ElementsZone, FocusScope, makeTrack } from '../focus.ts';
-import { primaryButton, secondaryButton, progressBar, setProgress } from '../components.ts';
+import { brandMark, primaryButton, secondaryButton, progressBar, setProgress } from '../components.ts';
 import { textField } from '../input.ts';
 import { prefs } from '../prefs.ts';
 import { phonePanel, type PhonePanel } from './phonePair.ts';
@@ -64,14 +64,14 @@ export function welcomeScreen(onContinue: () => void): Screen {
   check.addEventListener('click', () => { confirmed = !confirmed; sync(); });
   sync();
   const column = h('div', { class: 'col', style: 'width:1120px;align-items:center' },
-    h('div', { style: 'width:128px;height:128px;border-radius:40px;background:var(--grad);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:28px' }, icon('play_arrow', 76)),
+    brandMark(128, 'margin-bottom:28px'),
     h('div', { class: 't-display', style: 'text-align:center' }, 'Benvenuto in StePlayer'),
     h('div', { class: 't-body-l c2', style: 'text-align:center;margin:12px 0 32px' }, 'Lettore multimediale per le tue liste. Veloce, pulito e privato.'),
     h('div', { style: 'width:100%' }, gateCard(), infoCard('lock', PRIVACY)),
     h('div', { style: 'width:100%;margin:4px 0 24px' }, check),
     h('div', { style: 'width:100%' }, proceed));
   const el = h('div', { class: 'screen', style: 'display:flex;align-items:center;justify-content:center' },
-    h('div', { style: 'position:absolute;left:540px;top:-200px;width:840px;height:840px;background:radial-gradient(rgba(124,92,255,0.35), transparent 70%)' }),
+    h('div', { style: 'position:absolute;left:540px;top:-200px;width:840px;height:840px;background:radial-gradient(rgba(255,162,31,0.30), transparent 70%)' }),
     column);
   const zone = new ElementsZone(column);
   return { el, scope: new FocusScope([zone]) };
@@ -245,7 +245,7 @@ export function syncScreen(sourceId: number, onDone: () => void): Screen {
     const bar = progressBar(0.02, 'thin');
     bar.style.width = '100%';
     content.append(
-      h('div', { style: 'width:160px;height:160px;border-radius:48px;background:var(--grad);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:48px' }, icon('cloud_sync', 80)),
+      h('div', { style: 'width:160px;height:160px;border-radius:48px;background:var(--grad);display:flex;align-items:center;justify-content:center;color:var(--onaccent);margin-bottom:48px' }, icon('cloud_sync', 80)),
       h('div', { class: 't-headline-s' }, 'Preparazione della libreria'), label, bar);
     unsub = core.sync.onState((s: SyncState) => {
       if (s.kind === 'running') {

@@ -1,8 +1,9 @@
 #!/bin/sh
 # Generates the iOS and tvOS asset catalogs (icons, colors). Re-run after changing the icon design.
+# The images come from the shared brand generator (scripts/brand/make-brand.mjs); this script writes the catalog JSON.
 set -e
 cd "$(dirname "$0")/.."
-ICON="swift scripts/make_icons.swift"
+ICON=":"  # images rendered below by make-brand.mjs
 
 # ---------- iOS ----------
 A=Resources/iOS/Assets.xcassets
@@ -55,10 +56,11 @@ J
 # ---------- shared colors ----------
 for C in "$A" "$T"; do
   cat > "$C/AccentColor.colorset/Contents.json" <<'J'
-{"colors":[{"color":{"color-space":"srgb","components":{"alpha":"1.000","blue":"0xFF","green":"0x5C","red":"0x7C"}},"idiom":"universal"}],"info":{"author":"xcode","version":1}}
+{"colors":[{"color":{"color-space":"srgb","components":{"alpha":"1.000","blue":"0x1F","green":"0xA2","red":"0xFF"}},"idiom":"universal"}],"info":{"author":"xcode","version":1}}
 J
   cat > "$C/LaunchBackground.colorset/Contents.json" <<'J'
-{"colors":[{"color":{"color-space":"srgb","components":{"alpha":"1.000","blue":"0x12","green":"0x0D","red":"0x0B"}},"idiom":"universal"}],"info":{"author":"xcode","version":1}}
+{"colors":[{"color":{"color-space":"srgb","components":{"alpha":"1.000","blue":"0x1F","green":"0x0E","red":"0x0A"}},"idiom":"universal"}],"info":{"author":"xcode","version":1}}
 J
 done
+node ../scripts/brand/make-brand.mjs ios
 echo "Assets generated."

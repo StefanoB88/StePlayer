@@ -273,7 +273,7 @@ fun CategoryChips(
                 Text(
                     item.label,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (selected) Color.White else Palette.TextSecondary,
+                    color = if (selected) Palette.OnAccent else Palette.TextSecondary,
                     maxLines = 1,
                 )
             }
@@ -310,10 +310,10 @@ fun PrimaryButton(
         horizontalArrangement = Arrangement.Center,
     ) {
         if (icon != null) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = if (enabled) Palette.OnAccent else Color.White, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(text, style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.Bold)
+        Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) Palette.OnAccent else Color.White, fontWeight = FontWeight.Bold)
     }
 }
 
