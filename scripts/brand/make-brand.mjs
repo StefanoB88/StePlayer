@@ -5,7 +5,7 @@
 //   android  androidApp/src/main/res/drawable-xhdpi/tv_banner.png (Android TV banner, 320×180 dp)
 //   tizen    tizenApp/static/icon.png (512×512)
 //   web      ~/steplayerwebsite/assets/icon.png (192) and favicon.png (64) — override with WEBSITE_DIR
-//   play     store/google-play/icon-512.png and feature-graphic-1024x500.png
+//   play     store/google-play/icon-512.png, feature-graphic-1024x500.png and tv-banner-1280x720.png
 // The Android launcher icon is vector (res/drawable/ic_launcher_*.xml) and is not rendered here.
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -70,6 +70,8 @@ if (all || want.has('web')) {
 if (all || want.has('play')) {
   const P = join(root, 'store/google-play');
   await png(join(P, 'icon-512.png'), 512, 512, iconSvg(512));
+  // Android TV banner for the Play listing (the in-app banner is res/drawable-xhdpi/tv_banner.png).
+  await png(join(P, 'tv-banner-1280x720.png'), 1280, 720, full(1280, 720, lockup(720, { markScale: 0.4, textScale: 0.19 })));
   await png(join(P, 'feature-graphic-1024x500.png'), 1024, 500, full(1024, 500, `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:22px">
       ${lockup(170, { markScale: 0.9, textScale: 0.5, gap: 0.14 }).replace('width:100%;height:100%', 'height:170px')}

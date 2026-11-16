@@ -8,7 +8,9 @@ Materiali per App Store, Google Play e Samsung Seller Office. Niente di questa c
   (repo `steplayerwebsite`). Le app restano vuote al primo avvio: nessuna lista precaricata.
 - `app-store-review-notes.md` — testo per le App Review Notes (Apple).
 - `google-play-listing.md` — titolo, descrizione breve e completa senza marchi di terzi.
-- `google-play/` — icona 512×512 e grafica in primo piano 1024×500 per la scheda Play.
+- `google-play/` — icona, grafica in primo piano, banner TV e screenshot (telefono, tablet 7" e 10", Android TV), vedi
+  `google-play/README.md`.
+- `app-store/` — screenshot iPhone 6,9", iPad 13" e Apple TV, vedi `app-store/README.md`.
 - `samsung-test-information.md` — campo "Test Information" del Seller Office.
 - `samsung-app-description.md` — contenuto per il modello "App Description" di Samsung.
 - `samsung/` — immagini per il Seller Office (icona, logo, sfondi, screenshot), vedi `samsung/README.md`.

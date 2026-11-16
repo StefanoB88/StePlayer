@@ -319,7 +319,7 @@ private struct GuideProgramRow: View, Equatable {
                     .padding(.horizontal, 8).padding(.vertical, 6)
                     .frame(width: width, height: metrics.rowHeight - 6, alignment: .topLeading)
                     .clipped()
-                    .background(live ? Theme.primary.opacity(0.28) : (past ? Theme.surface.opacity(0.6) : Theme.surface),
+                    .background(live ? Theme.surfaceLive : (past ? Theme.surface.opacity(0.6) : Theme.surface),
                                 in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .contentShape(Rectangle())
                 }

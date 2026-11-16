@@ -313,7 +313,7 @@ fun PrimaryButton(
             Icon(icon, null, tint = if (enabled) Palette.OnAccent else Color.White, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) Palette.OnAccent else Color.White, fontWeight = FontWeight.Bold)
+        Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) Palette.OnAccent else Color.White, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
     }
 }
 
@@ -342,7 +342,7 @@ fun SecondaryButton(
             if (text.isNotEmpty()) Spacer(Modifier.width(8.dp))
         }
         if (text.isNotEmpty()) {
-            Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) Palette.TextPrimary else Palette.TextSecondary)
+            Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) Palette.TextPrimary else Palette.TextSecondary, maxLines = 1, softWrap = false)
         }
     }
 }

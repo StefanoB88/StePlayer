@@ -1,5 +1,6 @@
 package com.steplayer.app.ui.home
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -377,7 +378,8 @@ private fun HeroCarousel(items: List<HeroItem>, actions: AppActions, wide: Boole
             Modifier
                 .align(Alignment.BottomStart)
                 .padding(horizontal = Dimens.Section, vertical = 20.dp)
-                .then(if (wide) Modifier.fillMaxWidth(0.5f) else Modifier.fillMaxWidth()),
+                // Half the width on wide screens, but never so narrow that the two buttons wrap (7" tablets: ~250 dp).
+                .then(if (wide) Modifier.widthIn(min = 360.dp).fillMaxWidth(0.5f) else Modifier.fillMaxWidth()),
         ) {
             Text(item.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (!item.subtitle.isNullOrBlank()) {

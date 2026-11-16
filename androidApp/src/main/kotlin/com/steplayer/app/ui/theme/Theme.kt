@@ -28,6 +28,8 @@ object Palette {
     val Accent = Color(0xFFFFA21F)
     val Accent2 = Color(0xFFFFD25C)
     val AccentDeep = Color(0xFFD1650A)
+    /** Programme on air in the guide: a lighter navy (amber at low alpha turns brown on navy). */
+    val SurfaceLive = Color(0xFF283563)
     /** Text and icons drawn on the accent (white would not read on gold). */
     val OnAccent = Color(0xFF1B1204)
     val Live = Color(0xFFFF3B5C)

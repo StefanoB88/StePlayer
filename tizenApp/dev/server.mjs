@@ -17,6 +17,9 @@ const SCALE = Number(process.env.SCALE || 1);
 const REAL_ART = process.env.REAL_ART === '1';
 // NO_EXPIRY=1: no expiry date (store screenshots without the expiry notice).
 const NO_EXPIRY = process.env.NO_EXPIRY === '1';
+// PNG_ART=1: the same generated artwork as PNG (iOS and Android cannot decode SVG), rendered once with Chrome and cached.
+const PNG_ART = process.env.PNG_ART === '1';
+const ART_EXT = PNG_ART ? 'png' : 'svg';
 const MEDIA = join(root, 'dev/media/sample.mp4');
 
 const CATS = [
@@ -25,23 +28,52 @@ const CATS = [
 // Invented names only (store screenshots are taken from this catalogue): no real channel, film or series titles.
 const CHANNEL_NAMES = ['Zefiro', 'Ninfea', 'Lumen Uno', 'Corallo', 'Quarzo', 'Vespero', 'Brezza', 'Altamira',
   'Notiziario Uno', 'Notiziario Due', 'Cronache Demo', 'Dispaccio', 'Stadio Demo', 'Pista Uno', 'Traguardo', 'Motore Zero'];
+// Invented places, combined into names for every item beyond the hand-written ones.
+const PLACES = ['Vetrano', 'Asterio', 'Lirea', 'Calvisella', 'Senara', 'Oriela', 'Valdibrina', 'Ferandi', 'Marzolano', 'Coralba',
+  'Ostrena', 'Lisenna', 'Torbella', 'Quiriano', 'Saltena', 'Movena', 'Arcella', 'Pradello'];
+const CH_WORDS = ['Aurora', 'Sirio', 'Levante', 'Ponente', 'Ambra', 'Corvina', 'Lince', 'Ginepro', 'Opale', 'Rovere', 'Tamerice', 'Vela'];
+const MOVIE_PATTERNS = ['Le notti di %', 'Il ritorno a %', 'Una estate a %', 'Il segreto di %', 'Lettere da %', 'La strada per %'];
+const SERIES_PATTERNS = ['Le cronache di %', 'Misteri a %', 'La casa di %', 'Ritorno a %'];
+const fill = (pattern, i) => pattern.replace('%', PLACES[i % PLACES.length]);
 const channels = Array.from({ length: 40 * SCALE }, (_, i) => ({
-  id: String(100 + i), num: i + 1, name: i < CHANNEL_NAMES.length ? CHANNEL_NAMES[i] : `Canale ${i + 1}`,
+  id: String(100 + i), num: i + 1, name: i < CHANNEL_NAMES.length ? CHANNEL_NAMES[i] : `${CH_WORDS[i % CH_WORDS.length]} ${Math.floor(i / CH_WORDS.length) + 1}`,
   cat: CATS[i < 8 ? 0 : i < 12 ? 1 : i < 16 ? 2 : i % 3].id, epg: `ch${i + 1}.esempio`, archive: i % 4 === 0 ? 3 : 0,
 }));
 const MOVIE_TITLES = ['Le lanterne di Vetrano', 'Nebbia su Borgo Asterio', 'Il faro di Punta Lirea', 'Ottobre a Calvisella', 'La corsa di Elvira Mantis',
   'Sale e vento a Oriela', 'Il cartografo di Senara', 'Notturno a Valdibrina', 'Le isole Ferandi', 'Il ponte di Marzolano', 'Estate a Coralba', 'I giardini di Ostrena'];
 const movies = Array.from({ length: 36 * SCALE }, (_, i) => ({
-  id: String(500 + i), name: i < MOVIE_TITLES.length ? MOVIE_TITLES[i] : `Film di prova ${i + 1}`, cat: String(10 + (i % 3)),
+  id: String(500 + i), name: i < MOVIE_TITLES.length ? MOVIE_TITLES[i] : fill(MOVIE_PATTERNS[i % MOVIE_PATTERNS.length], i * 7), cat: String(10 + (i % 3)),
   year: 2015 + (i % 10), rating: 5 + (i % 5), added: Math.floor(Date.now() / 1000) - i * 86400,
 }));
 const SERIES_TITLES = ['I giorni di Valmora', 'Oltre Cimarosso', 'La bottega di Ondina', 'Codice Azzurrite', 'Isola Terenzia', 'Le stagioni di Ferla'];
 const series = Array.from({ length: 12 * SCALE }, (_, i) => ({
-  id: String(800 + i), name: i < SERIES_TITLES.length ? SERIES_TITLES[i] : `Serie di prova ${i + 1}`, cat: String(20 + (i % 2)),
+  id: String(800 + i), name: i < SERIES_TITLES.length ? SERIES_TITLES[i] : fill(SERIES_PATTERNS[i % SERIES_PATTERNS.length], i * 5 + 3), cat: String(20 + (i % 2)),
   year: 2018 + (i % 6), rating: 6 + (i % 4),
 }));
 const VOD_CATS = [{ id: '10', name: 'Avventura' }, { id: '11', name: 'Commedia' }, { id: '12', name: 'Drammatico' }];
 const SERIES_CATS = [{ id: '20', name: 'Gialli' }, { id: '21', name: 'Famiglia' }];
+
+const pngCache = new Map();
+let pngBrowser = null;
+async function svgToPng(key, svg) {
+  if (pngCache.has(key)) return pngCache.get(key);
+  const job = (async () => {
+    if (!pngBrowser) {
+      const { default: puppeteer } = await import('puppeteer-core');
+      pngBrowser = puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new' });
+    }
+    const b = await pngBrowser;
+    const w = Number(/width="(\d+)"/.exec(svg)[1]); const h = Number(/height="(\d+)"/.exec(svg)[1]);
+    const page = await b.newPage();
+    await page.setViewport({ width: w, height: h });
+    await page.setContent(`<html><body style="margin:0;background:transparent">${svg}</body></html>`);
+    const buf = await page.screenshot({ type: 'png', omitBackground: true, clip: { x: 0, y: 0, width: w, height: h } });
+    await page.close();
+    return Buffer.from(buf);
+  })();
+  pngCache.set(key, job);
+  return job;
+}
 
 const COLORS = ['#7C5CFF', '#00D4FF', '#FF3B5C', '#2ED47A', '#FFB020', '#4B6BFB', '#E05FD0', '#1FB5A8'];
 function svgPoster(title, i, w = 400, hgt = 600) {
@@ -59,9 +91,9 @@ function svgLogo(name, i) {
 }
 function svgBackdrop(title, i) { return svgPoster(title, i + 2, 1280, 720).replace(/font-size="44"/g, 'font-size="0"'); }
 
-function logoUrl(i) { return REAL_ART ? `${HOST}/dev/img/l${i % 16}.jpg?c=${i}` : `${HOST}/dev/logo/${i}.svg`; }
-function posterUrl(k, i) { return REAL_ART ? `${HOST}/dev/img/p${i % 24}.jpg?${k}=${i}` : `${HOST}/dev/poster/${k}${i}.svg`; }
-function backdropUrl(k, i) { return REAL_ART ? `${HOST}/dev/img/b${i % 8}.jpg?${k}=${i}` : `${HOST}/dev/backdrop/${k}${i}.svg`; }
+function logoUrl(i) { return REAL_ART ? `${HOST}/dev/img/l${i % 16}.jpg?c=${i}` : `${HOST}/dev/logo/${i}.${ART_EXT}`; }
+function posterUrl(k, i) { return REAL_ART ? `${HOST}/dev/img/p${i % 24}.jpg?${k}=${i}` : `${HOST}/dev/poster/${k}${i}.${ART_EXT}`; }
+function backdropUrl(k, i) { return REAL_ART ? `${HOST}/dev/img/b${i % 8}.jpg?${k}=${i}` : `${HOST}/dev/backdrop/${k}${i}.${ART_EXT}`; }
 function m3u() {
   let s = `#EXTM3U url-tvg="${HOST}/dev/epg.xml"\n`;
   for (const [i, c] of channels.entries()) {
@@ -163,9 +195,16 @@ createServer((req, res) => {
   if (p === '/dev/list.m3u' || p === '/get.php') return send(200, m3u(), 'audio/x-mpegurl');
   let m;
   if ((m = /^\/dev\/img\/([pbl]\d+\.jpg)$/.exec(p))) { const f = join(root, 'dev/media/posters', m[1]); if (existsSync(f)) { res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=86400', ...cors }); res.end(readFileSync(f)); return; } }
-  if ((m = /^\/dev\/logo\/(\d+)\.svg$/.exec(p))) return send(200, svgLogo(channels[Number(m[1])]?.name || 'TV', Number(m[1])), 'image/svg+xml');
-  if ((m = /^\/dev\/poster\/([ms])(\d+)\.svg$/.exec(p))) { const i = Number(m[2]); const t = m[1] === 'm' ? movies[i]?.name : series[i]?.name; return send(200, svgPoster(t || 'Titolo', i), 'image/svg+xml'); }
-  if ((m = /^\/dev\/backdrop\/([ms])(\d+)\.svg$/.exec(p))) { const i = Number(m[2]); return send(200, svgBackdrop('x', i), 'image/svg+xml'); }
+  let svg = null;
+  if ((m = /^\/dev\/logo\/(\d+)\.(svg|png)$/.exec(p))) svg = svgLogo(channels[Number(m[1])]?.name || 'TV', Number(m[1]));
+  else if ((m = /^\/dev\/poster\/([ms])(\d+)\.(svg|png)$/.exec(p))) { const i = Number(m[2]); const t = m[1] === 'm' ? movies[i]?.name : series[i]?.name; svg = svgPoster(t || 'Titolo', i); }
+  else if ((m = /^\/dev\/backdrop\/([ms])(\d+)\.(svg|png)$/.exec(p))) svg = svgBackdrop('x', Number(m[2]));
+  if (svg) {
+    if (!p.endsWith('.png')) return send(200, svg, 'image/svg+xml');
+    svgToPng(p, svg).then((buf) => { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400', ...cors }); res.end(buf); },
+      () => send(500, 'render failed', 'text/plain'));
+    return;
+  }
   if (/^\/(dev\/)?(live|movie|series|timeshift)\//.test(p) || /^\/demo\/demo\//.test(p)) return sendMedia(req, res);
   // build/ static files
   const file = join(root, 'build', p === '/' ? 'index.html' : p.replace(/^\/+/, ''));

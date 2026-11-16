@@ -23,6 +23,8 @@ enum Theme {
     static let primary = Color(hex: 0xFFA21F)   // Accent (amber)
     static let accent2 = Color(hex: 0xFFD25C)   // Accent2 (gold)
     static let accentDeep = Color(hex: 0xD1650A)
+    /// Programme on air in the guide: a lighter navy (amber at low alpha turns brown on navy).
+    static let surfaceLive = Color(hex: 0x283563)
     /// Text and icons drawn on the accent (white would not read on gold).
     static let onAccent = Color(hex: 0x1B1204)
     static let live = Color(hex: 0xFF3B5C)

@@ -235,7 +235,7 @@ private fun GuideRow(
                             .clip(shape)
                             .background(
                                 when {
-                                    live -> Palette.Accent.copy(alpha = 0.28f)
+                                    live -> Palette.SurfaceLive
                                     past -> Palette.Surface.copy(alpha = 0.6f)
                                     else -> Palette.Surface
                                 },
