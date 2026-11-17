@@ -367,10 +367,10 @@ private struct IOSPlayerContent: View {
             let st = vm.subtitleStyle
             let current = vm.subtitleTracks.first { $0.isSelected }?.name ?? "Disattivati"
             let entries: [(String, PlayerSheet?)] =
-                (vm.subtitleTracks.isEmpty ? [("Nessun sottotitolo in questo contenuto", nil)] : [("Traccia: \(current)", .textTrack)])
+                (vm.subtitleTracks.isEmpty ? [("Nessun sottotitolo in questo contenuto", nil)] : [("Lingua sottotitoli: \(current)", .textTrack)])
                 + [("Dimensione: \(Int((st?.scale ?? 1) * 100))%", .subSize),
                    ("Colore: \(SubtitleChoices.colorName(st?.color ?? .white))", .subColor),
-                   ("Sfondo: \(SubtitleChoices.backgroundName(st?.background ?? .none))", .subBackground)]
+                   ("Sfondo del testo: \(SubtitleChoices.backgroundName(st?.background ?? .none))", .subBackground)]
                 + (vm.subtitleTracks.isEmpty ? [] : [("Ritardo sottotitoli", .subSync)])
             MenuDialog(title: "Sottotitoli", items: entries.map(\.0), onSelect: { i in sheet = entries[i].1 ?? .text }, onDismiss: dismiss)
         case .subSize:
@@ -380,7 +380,7 @@ private struct IOSPlayerContent: View {
             OptionsDialog(title: "Colore", options: SubtitleChoices.colors.map { (SubtitleChoices.colorName($0), $0 == vm.subtitleStyle?.color) },
                           onSelect: { vm.updateSubtitleStyle(color: SubtitleChoices.colors[$0]); sheet = .text }, onDismiss: { sheet = .text })
         case .subBackground:
-            OptionsDialog(title: "Sfondo", options: SubtitleChoices.backgrounds.map { (SubtitleChoices.backgroundName($0), $0 == vm.subtitleStyle?.background) },
+            OptionsDialog(title: "Sfondo del testo", options: SubtitleChoices.backgrounds.map { (SubtitleChoices.backgroundName($0), $0 == vm.subtitleStyle?.background) },
                           onSelect: { vm.updateSubtitleStyle(background: SubtitleChoices.backgrounds[$0]); sheet = .text }, onDismiss: { sheet = .text })
         case .textTrack:
             OptionsDialog(title: "Sottotitoli",
@@ -630,7 +630,7 @@ private struct TVPlayerController: UIViewControllerRepresentable {
         if vm.subtitleTracks.isEmpty {
             children.append(UIAction(title: "Nessun sottotitolo in questo contenuto", attributes: .disabled) { _ in })
         } else {
-            children.append(UIMenu(title: "Traccia", options: .singleSelection, children:
+            children.append(UIMenu(title: "Lingua sottotitoli", options: .singleSelection, children:
                 [UIAction(title: "Disattivati", state: vm.subtitleTracks.contains { $0.isSelected } ? .off : .on) { _ in vm.selectSubtitle(nil) }]
                 + vm.subtitleTracks.map { t in UIAction(title: t.name, state: t.isSelected ? .on : .off) { _ in vm.selectSubtitle(t) } }))
         }
@@ -640,7 +640,7 @@ private struct TVPlayerController: UIViewControllerRepresentable {
         children.append(UIMenu(title: "Colore", options: .singleSelection, children: SubtitleChoices.colors.map { c in
             UIAction(title: SubtitleChoices.colorName(c), state: st?.color == c ? .on : .off) { _ in vm.updateSubtitleStyle(color: c) }
         }))
-        children.append(UIMenu(title: "Sfondo", options: .singleSelection, children: SubtitleChoices.backgrounds.map { b in
+        children.append(UIMenu(title: "Sfondo del testo", options: .singleSelection, children: SubtitleChoices.backgrounds.map { b in
             UIAction(title: SubtitleChoices.backgroundName(b), state: st?.background == b ? .on : .off) { _ in vm.updateSubtitleStyle(background: b) }
         }))
         return UIMenu(title: "Sottotitoli", image: UIImage(systemName: "captions.bubble"), children: children)
@@ -707,16 +707,16 @@ private struct TVSubtitlePanel: View {
             OptionsDialog(title: "Colore", options: SubtitleChoices.colors.map { (SubtitleChoices.colorName($0), $0 == vm.subtitleStyle?.color) },
                           onSelect: { vm.updateSubtitleStyle(color: SubtitleChoices.colors[$0]); page = .text }, onDismiss: { page = .text })
         case .subBackground:
-            OptionsDialog(title: "Sfondo", options: SubtitleChoices.backgrounds.map { (SubtitleChoices.backgroundName($0), $0 == vm.subtitleStyle?.background) },
+            OptionsDialog(title: "Sfondo del testo", options: SubtitleChoices.backgrounds.map { (SubtitleChoices.backgroundName($0), $0 == vm.subtitleStyle?.background) },
                           onSelect: { vm.updateSubtitleStyle(background: SubtitleChoices.backgrounds[$0]); page = .text }, onDismiss: { page = .text })
         default:
             let st = vm.subtitleStyle
             let current = vm.subtitleTracks.first { $0.isSelected }?.name ?? "Disattivati"
             let entries: [(String, PlayerSheet?)] =
-                (vm.subtitleTracks.isEmpty ? [("Nessun sottotitolo in questo contenuto", nil)] : [("Traccia: \(current)", .textTrack)])
+                (vm.subtitleTracks.isEmpty ? [("Nessun sottotitolo in questo contenuto", nil)] : [("Lingua sottotitoli: \(current)", .textTrack)])
                 + [("Dimensione: \(Int((st?.scale ?? 1) * 100))%", .subSize),
                    ("Colore: \(SubtitleChoices.colorName(st?.color ?? .white))", .subColor),
-                   ("Sfondo: \(SubtitleChoices.backgroundName(st?.background ?? .none))", .subBackground)]
+                   ("Sfondo del testo: \(SubtitleChoices.backgroundName(st?.background ?? .none))", .subBackground)]
             MenuDialog(title: "Sottotitoli", items: entries.map(\.0), onSelect: { i in if let next = entries[i].1 { page = next } }, onDismiss: close)
         }
     }

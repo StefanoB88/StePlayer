@@ -61,6 +61,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -256,7 +257,7 @@ fun PlayerScreen(
                 )
                 val entries = buildList {
                     if (ui.textTracks.isNotEmpty()) add("${stringResource(R.string.sub_track)}: $current" to Sheet.TEXT_TRACK)
-                    else add(stringResource(R.string.subtitles_none_available) to null)
+                    else add(stringResource(if (ui.castDevice != null) R.string.cast_subtitles_unavailable else R.string.subtitles_none_available) to null)
                     add("${stringResource(R.string.sub_size)}: ${(style.scale * 100).toInt()}%" to Sheet.SUB_SIZE)
                     add("${stringResource(R.string.sub_color)}: ${colorLabels[style.color]}" to Sheet.SUB_COLOR)
                     add("${stringResource(R.string.sub_background)}: ${bgLabels[style.background]}" to Sheet.SUB_BG)
@@ -477,11 +478,19 @@ private fun SeekBar(ui: PlayerUiState, controller: PlayerController) {
     var dragValue by remember { mutableFloatStateOf(0f) }
     val duration = ui.durationMs.coerceAtLeast(1)
     val value = if (dragging) dragValue else position.positionMs.toFloat() / duration
+    // Controls closed mid-drag (e.g. a dialog appeared): never leave the player stuck in scrubbing mode.
+    DisposableEffect(Unit) { onDispose { controller.endScrub(null) } }
     Slider(
         value = value.coerceIn(0f, 1f),
-        onValueChange = { dragging = true; dragValue = it; controller.showControls() },
+        onValueChange = {
+            dragging = true
+            dragValue = it
+            controller.showControls()
+            // Preview: the video follows the finger (or the D-pad on TV).
+            controller.scrub((it * duration).toLong())
+        },
         onValueChangeFinished = {
-            controller.seekTo((dragValue * duration).toLong())
+            controller.endScrub((dragValue * duration).toLong())
             dragging = false
         },
         enabled = ui.canSeek,

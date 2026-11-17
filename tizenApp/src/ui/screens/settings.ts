@@ -252,7 +252,7 @@ function subtitlesScreen(): Screen {
       choiceRow('Lingua', PREFERRED_LANGUAGES, s.preferredSubtitleLanguage, (v) => set((x) => ({ ...x, preferredSubtitleLanguage: v }))),
       choiceRow('Dimensione', [[0.75, '75%'], [1, '100%'], [1.25, '125%'], [1.5, '150%'], [2, '200%']], st.scale, (v) => set((x) => ({ ...x, subtitleStyle: { ...x.subtitleStyle, scale: v } }))),
       choiceRow<SubtitleStyle['color']>('Colore', [['WHITE', 'Bianco'], ['YELLOW', 'Giallo']], st.color, (v) => set((x) => ({ ...x, subtitleStyle: { ...x.subtitleStyle, color: v } }))),
-      choiceRow<SubtitleStyle['background']>('Sfondo', [['NONE', 'Nessuno'], ['SEMI_TRANSPARENT', 'Semitrasparente'], ['OPAQUE', 'Pieno']], st.background, (v) => set((x) => ({ ...x, subtitleStyle: { ...x.subtitleStyle, background: v } }))),
+      choiceRow<SubtitleStyle['background']>('Sfondo del testo', [['NONE', 'Nessuno'], ['SEMI_TRANSPARENT', 'Semitrasparente'], ['OPAQUE', 'Pieno']], st.background, (v) => set((x) => ({ ...x, subtitleStyle: { ...x.subtitleStyle, background: v } }))),
       choiceRow<SubtitleStyle['edge']>('Bordo', [['NONE', 'Nessuno'], ['OUTLINE', 'Contorno'], ['SHADOW', 'Ombra']], st.edge, (v) => set((x) => ({ ...x, subtitleStyle: { ...x.subtitleStyle, edge: v } }))),
     ]));
     if (idx >= 0 && scope.current === zone) { const e = zone.items()[idx]; if (e) zone.focusElement(e); }

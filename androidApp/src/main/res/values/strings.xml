@@ -188,7 +188,7 @@
     <string name="subtitles">Sottotitoli</string>
     <string name="subtitles_off">Disattivati</string>
     <string name="subtitles_none_available">Nessun sottotitolo in questo contenuto</string>
-    <string name="sub_track">Traccia</string>
+    <string name="sub_track">Lingua sottotitoli</string>
     <string name="settings_licenses">Licenze open source</string>
     <string name="settings_licenses_desc">FFmpeg (LGPL) e altri componenti</string>
     <string name="aspect">Formato</string>
@@ -261,7 +261,7 @@
     <string name="sub_color">Colore</string>
     <string name="sub_color_white">Bianco</string>
     <string name="sub_color_yellow">Giallo</string>
-    <string name="sub_background">Sfondo</string>
+    <string name="sub_background">Sfondo del testo</string>
     <string name="sub_bg_none">Nessuno</string>
     <string name="sub_bg_semi">Semitrasparente</string>
     <string name="sub_bg_opaque">Pieno</string>
@@ -283,6 +283,8 @@
     <string name="conn_test_applied">Buffer impostato</string>
     <string name="conn_test_footer">Il test scarica un file anonimo dal server di prova di Cloudflare per misurare la tua rete.</string>
     <string name="casting_to">In riproduzione su %1$s</string>
+    <string name="cast_tracks_unsupported">Con questo tipo di file (MKV/MP4) il Chromecast non permette di cambiare audio o sottotitoli: sulla TV restano l\'audio predefinito e nessun sottotitolo.</string>
+    <string name="cast_subtitles_unavailable">Il Chromecast non vede sottotitoli in questo contenuto</string>
     <string name="downloads_restricted_title">I download potrebbero fermarsi in background</string>
     <string name="downloads_restricted_text">Android ha limitato l\'uso della batteria di StePlayer. Tocca qui → Batteria → «Senza restrizioni» per scaricare anche a schermo spento.</string>
     <string name="refresh">Aggiorna</string>

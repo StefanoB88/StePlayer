@@ -558,11 +558,11 @@ export function playerScreen(initial: PlayRequest): Screen {
     const current = tracks.find((t) => t.index === sel);
     const entries: [string, () => void][] = [
       tracks.length
-        ? [`Traccia: ${current ? core.tracks.displayName(asInfo(current), tracks.indexOf(current)) : 'Disattivati'}`, () => trackDialog()]
+        ? [`Lingua sottotitoli: ${current ? core.tracks.displayName(asInfo(current), tracks.indexOf(current)) : 'Disattivati'}`, () => trackDialog()]
         : ['Nessun sottotitolo in questo contenuto', () => textDialog()],
       [`Dimensione: ${Math.round((st ? st.scale : 1) * 100)}%`, () => choiceDialog('Dimensione', SUB_SCALES.map((v) => [`${Math.round(v * 100)}%`, v] as [string, number]), st ? st.scale : 1, (v) => setStyle({ scale: v }))],
       [`Colore: ${SUB_COLORS.find((c) => c[1] === (st ? st.color : 'WHITE'))![0]}`, () => choiceDialog('Colore', SUB_COLORS, st ? st.color : 'WHITE', (v) => setStyle({ color: v }))],
-      [`Sfondo: ${SUB_BACKGROUNDS.find((b) => b[1] === (st ? st.background : 'NONE'))![0]}`, () => choiceDialog('Sfondo', SUB_BACKGROUNDS, st ? st.background : 'NONE', (v) => setStyle({ background: v }))],
+      [`Sfondo del testo: ${SUB_BACKGROUNDS.find((b) => b[1] === (st ? st.background : 'NONE'))![0]}`, () => choiceDialog('Sfondo del testo', SUB_BACKGROUNDS, st ? st.background : 'NONE', (v) => setStyle({ background: v }))],
     ];
     menuDialog('Sottotitoli', entries.map((e) => e[0]), (i) => entries[i][1]());
   }

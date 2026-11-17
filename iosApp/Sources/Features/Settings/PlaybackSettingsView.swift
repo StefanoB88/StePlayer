@@ -82,7 +82,7 @@ struct SubtitleSettingsView: View {
                                       selected: s.subtitleStyle.scale) { v in model.update { $0.scale = v } }
                             ChoiceRow(title: "Colore", options: [(SubtitleColor.white, "Bianco"), (SubtitleColor.yellow, "Giallo")],
                                       selected: s.subtitleStyle.color) { v in model.update { $0.color = v } }
-                            ChoiceRow(title: "Sfondo",
+                            ChoiceRow(title: "Sfondo del testo",
                                       options: [(SubtitleBackground.none, "Nessuno"), (SubtitleBackground.semiTransparent, "Semitrasparente"), (SubtitleBackground.opaque, "Pieno")],
                                       selected: s.subtitleStyle.background) { v in model.update { $0.background = v } }
                             ChoiceRow(title: "Bordo",

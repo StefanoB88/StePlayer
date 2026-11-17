@@ -11,6 +11,8 @@ import androidx.annotation.OptIn
 import androidx.compose.runtime.Immutable
 import androidx.media3.cast.CastPlayer
 import androidx.media3.cast.SessionAvailabilityListener
+import com.google.android.gms.cast.MediaTrack
+import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Format as MediaFormat
@@ -28,6 +30,8 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException
+import androidx.media3.exoplayer.mediacodec.MediaCodecRenderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.BehindLiveWindowException
@@ -214,6 +218,12 @@ class PlayerController(
     /** Audio formats whose decoder failed on this device: hidden from the list, another track is used instead. */
     private val failedAudio = mutableSetOf<String>()
     private var audioRecoveries = 0
+    /**
+     * Video (or audio) decoders that failed on the current content, by codec name. Read by the MediaCodecSelector on
+     * the playback thread. Typical case: a hardware HEVC decoder that accepts 10-bit video and then fails
+     * mid-decode, where Media3's own fallback (decoder initialisation only) doesn't kick in.
+     */
+    private val failedDecoders: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     private var retryPolicy: RetryPolicy = core.playback.retryPolicy(false)
     private var watchdog: StallWatchdog = core.playback.stallWatchdog(false)
@@ -251,13 +261,17 @@ class PlayerController(
                 if (app.isTv) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER,
             )
             .setEnableDecoderFallback(true)
-        if (app.prefs.softwareDecoder.value) {
-            renderers.setMediaCodecSelector(
-                MediaCodecSelector { mime, secure, tunneling ->
-                    MediaCodecUtil.getDecoderInfos(mime, secure, tunneling).sortedBy { it.hardwareAccelerated }
-                },
-            )
-        }
+        val softwareFirst = app.prefs.softwareDecoder.value
+        renderers.setMediaCodecSelector(
+            MediaCodecSelector { mime, secure, tunneling ->
+                val all = MediaCodecUtil.getDecoderInfos(mime, secure, tunneling)
+                val ordered = if (softwareFirst) all.sortedBy { it.hardwareAccelerated } else all
+                // Decoders that already failed on this content are left out (not just moved last: Media3 re-sorts
+                // by declared format support, and a chip that claims HEVC 10 bit and then fails would come first again).
+                // Never an empty list: with nothing else left, the failed ones are tried again.
+                ordered.filter { it.name !in failedDecoders }.ifEmpty { ordered }
+            },
+        )
         // Buffer profile from the shared BufferAdvisor (Normale / Grande, auto-escalated on stalls).
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(profile.minBufferMs, profile.maxBufferMs, profile.bufferForPlaybackMs, profile.bufferForPlaybackAfterRebufferMs)
@@ -318,6 +332,7 @@ class PlayerController(
         manualText = false
         contentKey = null
         audioRecoveries = 0
+        failedDecoders.clear()
         if (failedAudio.isNotEmpty()) {
             failedAudio.clear()
             // Audio may have been switched off for the previous content.
@@ -508,6 +523,7 @@ class PlayerController(
     private fun stopLocal() {
         if (released) return
         startGeneration++
+        stopScrubbing()
         exo.stop()
         exo.clearMediaItems()
     }
@@ -619,10 +635,15 @@ class PlayerController(
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            // While casting the (stopped) local player doesn't own the play/pause state: [castListener] does.
+            // While scrubbing playback is only suppressed: the play/pause button keeps its state.
+            if (casting || exo.isScrubbingModeEnabled) return
             _ui.update { it.copy(isPlaying = isPlaying) }
         }
 
         override fun onPlaybackStateChanged(state: Int) {
+            // Scrub seeks buffer constantly: no spinner over the preview and no stall bookkeeping.
+            if (casting || exo.isScrubbingModeEnabled) return
             _ui.update { it.copy(buffering = state == Player.STATE_BUFFERING) }
             if (state == Player.STATE_READY) {
                 hadBeenReady = true
@@ -634,7 +655,10 @@ class PlayerController(
             if (state == Player.STATE_ENDED) onEnded()
         }
 
-        override fun onTracksChanged(tracks: Tracks) = updateTracks(tracks)
+        override fun onTracksChanged(tracks: Tracks) {
+            // While casting the lists show the Chromecast's tracks ([updateCastTracks]).
+            if (!casting) updateTracks(tracks)
+        }
 
         override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
             val f = exo.videoFormat ?: return
@@ -668,9 +692,24 @@ class PlayerController(
                 launchStart(s, position)
                 return
             }
+            // A video decoder that fails on this file (e.g. HEVC 10 bit on a chip without Main10 support): restart
+            // the same position with the next decoder, usually Android's software one, before giving up.
+            val decoder = failedDecoderName(error)
+            if (failed != null && MimeTypes.isVideo(failed.sampleMimeType) && decoder != null &&
+                failedDecoders.size < MAX_DECODER_RECOVERIES && failedDecoders.add(decoder)
+            ) {
+                Log.w("StePlayer", "video decoder $decoder failed on ${MediaNames.codec(failed)}: retrying with another decoder", error)
+                launchStart(s, position)
+                return
+            }
             scope.launch { handleFailure(mapError(error, s)) }
         }
     }
+
+    /** Name of the MediaCodec decoder behind a renderer error (initialisation or decoding), if Media3 reports it. */
+    private fun failedDecoderName(e: PlaybackException): String? =
+        findCause<MediaCodecDecoderException>(e)?.codecInfo?.name
+            ?: findCause<MediaCodecRenderer.DecoderInitializationException>(e)?.codecInfo?.name
 
     private inline fun <reified T : Throwable> findCause(e: Throwable): T? {
         var c: Throwable? = e
@@ -819,6 +858,57 @@ class PlayerController(
         val target = ms.coerceIn(0, _ui.value.durationMs)
         player.seekTo(target)
         _position.update { it.copy(positionMs = target) }
+    }
+
+    // ------------------------------------------------------------------ scrubbing (preview while dragging)
+
+    private var scrubJob: Job? = null
+    @Volatile private var scrubTarget: Long? = null
+
+    /**
+     * The seek bar is being dragged: the video shows the frame under the finger (ExoPlayer scrubbing mode, no
+     * audio). Uses the stream's own connection, never an extra one, and asks for the next frame only once the
+     * previous one is shown: rapid reconnections could trip the provider's connection limit. Not while casting
+     * (the Chromecast owns the connection, there is no local video).
+     */
+    fun scrub(ms: Long) {
+        if (released || casting || !_ui.value.canSeek || exo.currentMediaItem == null) return
+        if (!exo.isScrubbingModeEnabled) {
+            // Nearest key frame within ±0.2 % of the duration (≈15 s on a 2 h film): far fewer bytes per frame.
+            exo.scrubbingModeParameters = exo.scrubbingModeParameters.buildUpon()
+                .setFractionalSeekTolerance(SCRUB_TOLERANCE, SCRUB_TOLERANCE)
+                .build()
+            exo.isScrubbingModeEnabled = true
+        }
+        scrubTarget = ms.coerceIn(0, _ui.value.durationMs)
+        if (scrubJob?.isActive == true) return
+        scrubJob = scope.launch {
+            while (true) {
+                val target = scrubTarget ?: break
+                scrubTarget = null
+                exo.seekTo(target)
+                val started = System.currentTimeMillis()
+                delay(SCRUB_MIN_INTERVAL_MS)
+                while (exo.playbackState == Player.STATE_BUFFERING && System.currentTimeMillis() - started < SCRUB_MAX_WAIT_MS) delay(40)
+            }
+        }
+    }
+
+    /** Finger lifted: exact seek to [ms] (null = stay where the preview is) and normal playback again. */
+    fun endScrub(ms: Long?) {
+        val wasScrubbing = exo.isScrubbingModeEnabled
+        stopScrubbing()
+        if (ms != null) seekTo(ms)
+        if (!casting && (wasScrubbing || ms != null)) {
+            _ui.update { it.copy(isPlaying = exo.isPlaying, buffering = exo.playbackState == Player.STATE_BUFFERING) }
+        }
+    }
+
+    private fun stopScrubbing() {
+        scrubJob?.cancel()
+        scrubJob = null
+        scrubTarget = null
+        if (exo.isScrubbingModeEnabled) exo.isScrubbingModeEnabled = false
     }
 
     /** +1 = next channel in the current category, -1 = previous (wraps). */
@@ -1022,6 +1112,11 @@ class PlayerController(
 
     /** Manual choice from the picker: remembered for the rest of the session. */
     fun selectTrack(type: Int, option: TrackOption?) {
+        if (casting) {
+            selectCastTrack(type, option)
+            userInteraction()
+            return
+        }
         if (type == C.TRACK_TYPE_AUDIO) manualAudio = true else manualText = true
         applyTrack(type, option)
         userInteraction()
@@ -1061,6 +1156,8 @@ class PlayerController(
             tickSession(now)
             val s = stream ?: continue
             if (released || casting || (lease == null && !s.isLocal())) { healthySince = 0; continue }
+            // Dragging the seek bar: the position jumps and playback is suppressed, which is not a stall.
+            if (exo.isScrubbingModeEnabled) { watchdog.reset(); healthySince = 0; continue }
             if (_ui.value.statsVisible) updateStats()
             // Rebuffer > 1 s counts as a stall for the stats and the buffer advisor.
             if (bufferingSince > 0 && !stallReported && now - bufferingSince > 1_000 && exo.playbackState == Player.STATE_BUFFERING) {
@@ -1212,10 +1309,77 @@ class PlayerController(
         else scope.launch { CastSupport.ready.filterNotNull().first().let { if (!released) setupCast(it) } }
     }
 
+    /**
+     * Play/pause, buffering and duration as the Chromecast reports them: pausing from the TV remote, the
+     * Google Home app or the Cast notification updates the phone controls too.
+     */
+    private val castListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (casting) _ui.update { it.copy(isPlaying = isPlaying) }
+        }
+
+        override fun onPlaybackStateChanged(state: Int) {
+            if (!casting) return
+            val cp = castPlayer ?: return
+            val duration = cp.duration.takeIf { it != C.TIME_UNSET && it > 0 }
+            _ui.update { it.copy(buffering = state == Player.STATE_BUFFERING, isPlaying = cp.isPlaying, durationMs = duration ?: it.durationMs) }
+        }
+
+        // Also fired when the active tracks change (chosen on the TV or from the phone).
+        override fun onTracksChanged(tracks: Tracks) {
+            if (casting) updateCastTracks()
+        }
+    }
+
+    /** Tracks of the media loaded on the Chromecast, in the receiver's order ([TrackOption.trackIndex] points here). */
+    private var castTracks: List<MediaTrack> = emptyList()
+
+    private fun remoteClient(): RemoteMediaClient? =
+        CastSupport.ready.value?.sessionManager?.currentCastSession?.remoteMediaClient
+
+    /**
+     * Audio and subtitle tracks as the Chromecast sees them. The Default Media Receiver lists them only for
+     * HLS/DASH streams: for MKV/MP4 files it plays the default audio track and no subtitles, and both lists stay empty.
+     */
+    private fun updateCastTracks() {
+        val client = remoteClient()
+        val all = client?.mediaInfo?.mediaTracks.orEmpty()
+        val active = client?.mediaStatus?.activeTrackIds?.toSet().orEmpty()
+        castTracks = all
+        fun options(type: Int, keep: (MediaTrack) -> Boolean = { true }): List<TrackOption> {
+            var n = 0
+            return all.mapIndexedNotNull { i, t ->
+                if (t.type != type || !keep(t)) null
+                else TrackOption(CAST_TRACK_GROUP, i, TrackPicker.displayName(TrackInfo(t.id.toString(), t.language, t.name), n++), t.id in active)
+            }
+        }
+        val audio = options(MediaTrack.TYPE_AUDIO)
+        val text = options(MediaTrack.TYPE_TEXT) { it.subtype != MediaTrack.SUBTYPE_METADATA && it.subtype != MediaTrack.SUBTYPE_CHAPTERS }
+        _ui.update { it.copy(audioTracks = audio, textTracks = text, textEnabled = true) }
+    }
+
+    /** Switches the track of [type] on the Chromecast, keeping the active tracks of the other types. null = subtitles off. */
+    private fun selectCastTrack(type: Int, option: TrackOption?) {
+        val client = remoteClient() ?: return
+        val castType = if (type == C.TRACK_TYPE_AUDIO) MediaTrack.TYPE_AUDIO else MediaTrack.TYPE_TEXT
+        val ofType = castTracks.filter { it.type == castType }.map { it.id }.toSet()
+        val active = client.mediaStatus?.activeTrackIds?.filter { it !in ofType }.orEmpty().toMutableList()
+        option?.let { o -> castTracks.getOrNull(o.trackIndex)?.let { active += it.id } }
+        client.setActiveMediaTracks(active.toLongArray())
+    }
+
+    /** Copies the Chromecast's current state into the UI (hand-off, or the session was already running). */
+    private fun syncFromCast() {
+        val cp = castPlayer ?: return
+        val duration = cp.duration.takeIf { it != C.TIME_UNSET && it > 0 }
+        _ui.update { it.copy(isPlaying = cp.isPlaying, durationMs = duration ?: it.durationMs) }
+    }
+
     private fun setupCast(castContext: com.google.android.gms.cast.framework.CastContext) {
         if (castPlayer != null) return
         val cp = runCatching { CastPlayer(castContext) }.getOrNull() ?: return
         castPlayer = cp
+        cp.addListener(castListener)
         val listener = object : SessionAvailabilityListener {
             override fun onCastSessionAvailable() {
                 val name = castContext.sessionManager.currentCastSession?.castDevice?.friendlyName ?: "Chromecast"
@@ -1223,21 +1387,34 @@ class PlayerController(
                 if (s == null) {
                     // Still opening: the start in progress goes straight to the Chromecast.
                     _ui.update { it.copy(castDevice = name) }
+                    syncFromCast()
                     return
                 }
                 // The Chromecast opens its own connection: close ours first, then take a "Chromecast" lease.
                 val pos = if (_ui.value.isLive) 0 else exo.currentPosition
+                // Audio/subtitle choices on the phone that the Chromecast cannot offer for a plain file (MKV/MP4).
+                val hadChoices = _ui.value.audioTracks.size > 1 || _ui.value.textTracks.isNotEmpty()
                 cancelPending()
                 stopLocal()
                 releaseLease()
-                _ui.update { it.copy(castDevice = name) }
+                _ui.update {
+                    it.copy(
+                        castDevice = name,
+                        // Filled by the Chromecast once the media is loaded.
+                        audioTracks = emptyList(), textTracks = emptyList(),
+                        notice = if (hadChoices && mimeFor(s) == null) context.getString(R.string.cast_tracks_unsupported) else it.notice,
+                    )
+                }
+                syncFromCast()
                 launchStart(s, pos)
             }
 
             override fun onCastSessionUnavailable() {
                 val pos = if (_ui.value.isLive) 0 else cp.currentPosition
                 releaseLease()
-                _ui.update { it.copy(castDevice = null) }
+                // The local player takes over: its listener reports play/pause again from here.
+                castTracks = emptyList()
+                _ui.update { it.copy(castDevice = null, isPlaying = exo.isPlaying, audioTracks = emptyList(), textTracks = emptyList()) }
                 val s = stream ?: return
                 if (foreground) launchStart(s, pos)
                 else {
@@ -1327,11 +1504,25 @@ class PlayerController(
         releaseLease()
         released = true
         castPlayer?.setSessionAvailabilityListener(null)
+        castPlayer?.removeListener(castListener)
         castPlayer?.release()
         castPlayer = null
         exo.removeListener(listener)
         exo.removeAnalyticsListener(analytics)
         exo.release()
+    }
+
+    private companion object {
+        /** Distinct decoders tried after a video decoder failure on one content. */
+        const val MAX_DECODER_RECOVERIES = 3
+        /** [TrackOption.groupIndex] of a Chromecast track (local tracks use the ExoPlayer group index, ≥ 0). */
+        const val CAST_TRACK_GROUP = -1
+        /** Scrub seek tolerance, as a fraction of the duration (before and after the target). */
+        const val SCRUB_TOLERANCE = 0.002
+        /** At most ~6 preview frames per second... */
+        const val SCRUB_MIN_INTERVAL_MS = 150L
+        /** ...and never more than one frame request in flight, unless the server is this slow. */
+        const val SCRUB_MAX_WAIT_MS = 1_500L
     }
 
     init {
