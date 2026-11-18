@@ -33,6 +33,7 @@ class DownloadTransferTest {
     private var supportsRanges = true
     private var bytesPer100ms = 0L          // per-connection throttle (0 = unlimited)
     private val disconnectNext = AtomicInteger(0)
+    private val rejectNext = AtomicInteger(0)  // answer 503 (e.g. "too many connections")
 
     @Before fun setUp() {
         server = MockWebServer()
@@ -40,6 +41,7 @@ class DownloadTransferTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 requests += request
                 if (request.path != "/movie.mkv") return MockResponse().setResponseCode(404)
+                if (rejectNext.getAndUpdate { if (it > 0) it - 1 else 0 } > 0) return MockResponse().setResponseCode(503)
                 val range = request.getHeader("Range")?.removePrefix("bytes=")
                 val response = if (supportsRanges && range != null) {
                     val start = range.substringBefore('-').toLong()
@@ -142,6 +144,57 @@ class DownloadTransferTest {
         assertArrayEquals(data, file.readBytes())
         assertEquals("bytes=3000000-", requests.first().getHeader("Range"))
     }
+
+    /** Asks for a fresh connection every [bytes] received, [times] times in total. */
+    private class RefreshEvery(private val bytes: Long, private val times: Int, private val onRefresh: () -> Unit = {}) : ConnectionRefresher() {
+        private var seen = 0L
+        var count = 0
+        override fun connected() { seen = 0 }
+        override fun onBytes(n: Int): Boolean {
+            if (count >= times) return false
+            seen += n
+            if (seen < bytes) return false
+            count++
+            onRefresh()
+            return true
+        }
+    }
+
+    private fun rangeStarts(from: Int = 0) =
+        requests.drop(from).mapNotNull { it.getHeader("Range")?.removePrefix("bytes=")?.substringBefore('-')?.toLong() }
+
+    @Test fun throttledConnectionIsReopenedFromTheSameByte() = runBlocking {
+        val refresher = RefreshEvery(1024 * 1024, times = 3)
+        val file = File(tmp.root, "refresh.mkv")
+        DownloadTransfer(client, server.url("/movie.mkv").toString(), emptyMap(), file, refresherFactory = { refresher })
+            .run(1) { _, _ -> }
+        assertArrayEquals(data, file.readBytes())
+        assertEquals(3, refresher.count)
+        val starts = rangeStarts()
+        assertEquals("probe + 3 reopenings, one connection at a time: $starts", 4, starts.size)
+        assertEquals(0L, starts.first())
+        assertTrue("each reopening continues further on: $starts", starts.zipWithNext().all { (a, b) -> b > a })
+        assertTrue(!File(file.path + ".state").exists())
+    }
+
+    @Test fun refusedReopeningIsRetriedInsteadOfFailing() = runBlocking {
+        // The provider still counts the connection just closed and refuses the new one once.
+        val refresher = RefreshEvery(1024 * 1024, times = 1) { rejectNext.set(1) }
+        val file = File(tmp.root, "refused.mkv")
+        DownloadTransfer(client, server.url("/movie.mkv").toString(), emptyMap(), file, refresherFactory = { refresher })
+            .run(1) { _, _ -> }
+        assertArrayEquals(data, file.readBytes())
+        assertEquals(3, requests.size) // probe, refused reopening, successful retry
+    }
+
+    @Test fun refreshWorksWithParallelSegmentsToo() = runBlocking {
+        val file = File(tmp.root, "refresh4.mkv")
+        transferWith(file) { RefreshEvery(512 * 1024, times = 1) }.run(4) { _, _ -> }
+        assertArrayEquals(data, file.readBytes())
+    }
+
+    private fun transferWith(file: File, factory: () -> ConnectionRefresher) =
+        DownloadTransfer(client, server.url("/movie.mkv").toString(), emptyMap(), file, minSegmentBytes = 1024 * 1024, refresherFactory = factory)
 
     @Test(expected = HttpStatusException::class)
     fun notFoundIsReported() = runBlocking<Unit> {

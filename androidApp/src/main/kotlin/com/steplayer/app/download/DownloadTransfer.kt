@@ -34,6 +34,10 @@ class NotEnoughSpaceException(val neededBytes: Long) : IOException("Not enough s
  *   Never more connections than the caller was granted by the ConnectionGuard.
  * - **Resumable**: progress of every segment is persisted in `<file>.state` once per second, so a
  *   pause, network loss, process death or reboot continues where it stopped.
+ * - **Fresh bursts**: many servers send each new connection at full speed for a while, then throttle
+ *   it. [ConnectionRefresher] learns how long the burst lasts and renews the connection just before
+ *   the slowdown, reopening the segment from the same byte (old connection closed first: never
+ *   extra connections).
  * - **Efficient I/O**: 512 KB reads, positional writes, no transparent gzip (`identity`), which
  *   would otherwise break Content-Length and Range on misconfigured servers.
  *
@@ -45,6 +49,7 @@ class DownloadTransfer(
     private val headers: Map<String, String>,
     private val file: File,
     private val minSegmentBytes: Long = 16L * 1024 * 1024,
+    private val refresherFactory: () -> ConnectionRefresher = { ConnectionRefresher() },
 ) {
     data class Segment(val start: Long, val end: Long, @Volatile var done: Long) {
         val next: Long get() = start + done
@@ -162,6 +167,9 @@ class DownloadTransfer(
     private suspend fun downloadSegment(segment: Segment, channel: FileChannel, downloaded: AtomicLong, reuse: Response?) {
         var attempt = 0
         var response = reuse
+        val refresher = refresherFactory()
+        var refreshing = false   // the current connection was closed on purpose to get a fresh burst
+        var rejected = 0
         while (!segment.complete) {
             coroutineContext.ensureActive()
             try {
@@ -169,9 +177,11 @@ class DownloadTransfer(
                 response = null
                 r.use {
                     if (r.code != 206) throw if (r.code in 200..299) IOException("Range not honoured") else HttpStatusException(r.code)
+                    refreshing = false
+                    refresher.connected()
                     val source = r.body!!.source()
                     val buffer = ByteArray(BUFFER)
-                    while (!segment.complete) {
+                    while (!segment.complete && !refreshing) {
                         coroutineContext.ensureActive()
                         val want = minOf(BUFFER.toLong(), segment.end - segment.next + 1).toInt()
                         val n = fill(source, buffer, want)
@@ -182,12 +192,20 @@ class DownloadTransfer(
                         segment.done += n
                         downloaded.addAndGet(n.toLong())
                         attempt = 0
+                        if (!segment.complete && refresher.onBytes(n)) refreshing = true
                     }
                 }
+                // Closed (above) before reopening: never two connections at once. The short pause
+                // lets the provider register the close, like a manual pause/resume does.
+                if (refreshing && !segment.complete) delay(refresher.pauseMs)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: HttpStatusException) {
-                throw e
+                // The provider may still count the closed connection for a moment: wait longer and
+                // retry (the refresher slows down, then stops renewing after repeated refusals).
+                if (!refreshing || ++rejected > REFRESH_REJECTIONS) throw e
+                refresher.rejected()
+                delay(refresher.pauseMs)
             } catch (e: IOException) {
                 // Transient: reconnect this segment from where it stopped.
                 if (++attempt > SEGMENT_RETRIES) throw e
@@ -289,6 +307,7 @@ class DownloadTransfer(
         private const val BUFFER = 512 * 1024
         private const val MIN_WRITE = 256 * 1024
         private const val SEGMENT_RETRIES = 4
+        private const val REFRESH_REJECTIONS = 5
         private const val SPACE_MARGIN = 200L * 1024 * 1024
 
         /** Removes the file and its resume state. */

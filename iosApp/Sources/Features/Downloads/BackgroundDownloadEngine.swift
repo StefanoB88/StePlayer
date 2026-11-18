@@ -1,11 +1,19 @@
 #if os(iOS)
 import Foundation
 import Shared
+import UIKit
 
 /// Kotlin `DownloadEngine` on top of a background URLSession:
 /// downloads keep going when the app is suspended or killed by the system.
 /// Every transfer holds a connection lease, so downloads never exceed the account's
 /// `max_connections` and always leave room for playback.
+///
+/// Fresh bursts: many providers send each new connection at full speed for a while, then throttle
+/// it. While the app is in the foreground, `ConnectionRefresher` learns how long the burst lasts and
+/// the task is renewed just before the slowdown: cancelled with resume data, then restarted from
+/// that data (a Range request from the same byte). The old task is cancelled before the new one
+/// starts and the lease is kept, so it is still one connection. Only for servers that support
+/// resuming (Accept-Ranges + ETag/Last-Modified); in the background iOS runs the transfer alone.
 final class BackgroundDownloadEngine: NSObject, DownloadEngine, URLSessionDownloadDelegate, @unchecked Sendable {
     static let sessionIdentifier = "com.steplayer.downloads"
     /// Set by the AppDelegate when iOS relaunches us for finished background transfers.
@@ -33,6 +41,20 @@ final class BackgroundDownloadEngine: NSObject, DownloadEngine, URLSessionDownlo
     /// Automatic resume attempts after transient network errors (memory only). Main-thread only.
     private var retryAttempts: [String: Int] = [:]
     private static let maxAutoRetries = 8
+
+    // Fresh bursts (all guarded by `lock`).
+    private var refreshers: [String: ConnectionRefresher] = [:]
+    /// Task currently measured by each download's refresher, and the foreground period it started in.
+    private var measured: [String: (task: Int, generation: Int)] = [:]
+    /// Tasks cancelled or refused during a renewal: their completion must not release the lease or fail.
+    private var replaced: Set<Int> = []
+    /// Renewal task that hasn't delivered data yet (its resume file is kept until it does).
+    private var renewalTask: [String: Int] = [:]
+    private var renewRejections: [String: Int] = [:]
+    private var foreground = false
+    private var foregroundGeneration = 0
+    private var lifecycleObservers: [NSObjectProtocol] = []
+    private static let maxRenewRejections = 5
 
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
@@ -63,7 +85,24 @@ final class BackgroundDownloadEngine: NSObject, DownloadEngine, URLSessionDownlo
             self.activeSubscription = observeList(connections.active, as: LeaseInfo.self) { [weak self] _ in
                 self?.drainWaiting()
             }
+            self.observeForeground()
         }
+    }
+
+    private func observeForeground() {
+        let setForeground: (Bool) -> Void = { [weak self] active in
+            guard let self else { return }
+            self.lock.withLock {
+                if active && !self.foreground { self.foregroundGeneration += 1 }
+                self.foreground = active
+            }
+        }
+        setForeground(UIApplication.shared.applicationState == .active)
+        let center = NotificationCenter.default
+        lifecycleObservers = [
+            center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in setForeground(true) },
+            center.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { _ in setForeground(false) },
+        ]
     }
 
     // MARK: Leases (main thread)
@@ -250,10 +289,118 @@ final class BackgroundDownloadEngine: NSObject, DownloadEngine, URLSessionDownlo
         if shouldReport {
             downloads.onProgress(id: info.id, bytes: totalBytesWritten, total: max(totalBytesExpectedToWrite, 0))
         }
+        measureBurst(downloadTask, info: info, bytes: bytesWritten)
+    }
+
+    // MARK: Fresh bursts
+
+    /// Feeds the refresher; renews the task when it asks to.
+    private func measureBurst(_ task: URLSessionDownloadTask, info: (id: String, fileName: String), bytes: Int64) {
+        guard let http = task.response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return }
+        let id = info.id
+        let taskId = task.taskIdentifier
+        var dropResumeFile = false
+        var renewAfter: Int64?
+        lock.lock()
+        if !replaced.contains(taskId) {
+            if renewalTask[id] == taskId {
+                // The renewed connection is delivering: its resume data is no longer needed.
+                renewalTask[id] = nil
+                renewRejections[id] = nil
+                dropResumeFile = true
+            }
+            if foreground && Self.isResumable(http) {
+                let refresher = refreshers[id] ?? ConnectionRefresher()
+                refreshers[id] = refresher
+                if measured[id]?.task != taskId || measured[id]?.generation != foregroundGeneration {
+                    // New connection, or back from the background (the gap would look like a slowdown).
+                    measured[id] = (taskId, foregroundGeneration)
+                    refresher.connected()
+                }
+                if refresher.onBytes(bytes) {
+                    replaced.insert(taskId)
+                    renewAfter = refresher.pauseMs
+                }
+            }
+        }
+        lock.unlock()
+        if dropResumeFile { try? FileManager.default.removeItem(at: resumeFile(id)) }
+        if let pause = renewAfter { renew(task, id: id, fileName: info.fileName, pauseMs: pause) }
+    }
+
+    /// Cancels the throttled task keeping its resume data, then restarts from it after a short pause.
+    private func renew(_ task: URLSessionDownloadTask, id: String, fileName: String, pauseMs: Int64) {
+        let started = epoch(id)
+        task.cancel(byProducingResumeData: { [self] data in
+            guard let data else { handOver(id); return }
+            try? data.write(to: resumeFile(id))
+            DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(Int(pauseMs))) { [self] in
+                startRenewal(id: id, fileName: fileName, epoch: started)
+            }
+        })
+    }
+
+    private func startRenewal(id: String, fileName: String, epoch started: Int) {
+        if lock.withLock({ deleted.contains(id) }) {
+            try? FileManager.default.removeItem(at: resumeFile(id))
+            return
+        }
+        // Paused meanwhile: pause() already gave the lease back; the resume file stays for later.
+        guard epoch(id) == started else { return }
+        guard let data = try? Data(contentsOf: resumeFile(id)) else { handOver(id); return }
+        let task = session.downloadTask(withResumeData: data)
+        task.taskDescription = "\(id)|\(fileName)"
+        lock.withLock { renewalTask[id] = task.taskIdentifier }
+        task.resume()
+    }
+
+    /// The renewed connection was refused (the provider may still count the one just closed):
+    /// retry after a longer pause. Returns false when the normal error handling should take over.
+    private func retryRefusedRenewal(_ task: URLSessionDownloadTask, info: (id: String, fileName: String)) -> Bool {
+        let id = info.id
+        var pause: Int64?
+        lock.lock()
+        if renewalTask[id] == task.taskIdentifier {
+            renewalTask[id] = nil
+            let attempt = (renewRejections[id] ?? 0) + 1
+            if attempt <= Self.maxRenewRejections {
+                renewRejections[id] = attempt
+                let refresher = refreshers[id]
+                refresher?.rejected()
+                pause = refresher?.pauseMs ?? ConnectionRefresher.maxPauseMs
+                replaced.insert(task.taskIdentifier)
+            } else {
+                renewRejections[id] = nil
+            }
+        }
+        lock.unlock()
+        guard let pause else { return false }
+        let started = epoch(id)
+        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(Int(pause))) { [self] in
+            startRenewal(id: id, fileName: info.fileName, epoch: started)
+        }
+        return true
+    }
+
+    /// No resume data after all: hand the download to the normal automatic-retry path.
+    private func handOver(_ id: String) {
+        lock.withLock { refreshers[id]?.disable() }
+        downloads.onQueued(id: id)
+        releaseLease(id)
+        Task { @MainActor in self.scheduleAutoResume(id) }
+    }
+
+    /// URLSession can only resume with ranges and a validator (ETag or Last-Modified).
+    private static func isResumable(_ http: HTTPURLResponse) -> Bool {
+        let ranges = http.statusCode == 206 || http.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased() == "bytes"
+        let validator = http.value(forHTTPHeaderField: "ETag") != nil || http.value(forHTTPHeaderField: "Last-Modified") != nil
+        return ranges && validator
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         guard let info = Self.parse(downloadTask.taskDescription) else { return }
+        if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode),
+           retryRefusedRenewal(downloadTask, info: info) { return }
         defer { releaseLease(info.id) }
         // Deleted during the last bytes: drop the file (iOS removes `location` when we return).
         if lock.withLock({ deleted.contains(info.id) }) { return }
@@ -281,8 +428,16 @@ final class BackgroundDownloadEngine: NSObject, DownloadEngine, URLSessionDownlo
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let info = Self.parse(task.taskDescription) else { return }
+        // Replaced by a renewal: the download goes on in a new task with the same lease.
+        if lock.withLock({ replaced.remove(task.taskIdentifier) != nil }) { return }
         releaseLease(info.id)
-        lock.lock(); meters[info.id] = nil; lock.unlock()
+        lock.lock()
+        meters[info.id] = nil
+        refreshers[info.id] = nil
+        measured[info.id] = nil
+        renewalTask[info.id] = nil
+        renewRejections[info.id] = nil
+        lock.unlock()
         let id = info.id
         Task { @MainActor in DownloadSpeedStore.shared.clear(id) }
         guard let error else {
