@@ -13,10 +13,61 @@ export type XtreamErrorKind = 'INVALID_CREDENTIALS' | 'ACCOUNT_EXPIRED' | 'NETWO
 
 export class XtreamException extends Error {
   readonly kind: XtreamErrorKind;
-  constructor(message: string, kind: XtreamErrorKind) {
+  /** HTTP status of the failed response, when there was one (shown to help diagnose SERVER). */
+  readonly httpStatus: number | null;
+  constructor(message: string, kind: XtreamErrorKind, httpStatus: number | null = null) {
     super(message);
     this.name = 'XtreamException';
     this.kind = kind;
+    this.httpStatus = httpStatus;
+  }
+}
+
+/**
+ * Port of XtreamAuthErrors (XtreamClient.kt). Panels don't agree on how to say "wrong username or
+ * password": besides 401/403 and {"user_info":{"auth":0}}, some answer 400/406/4xx, others an
+ * error status with a body that says so, others an empty body or [].
+ */
+export const XtreamAuthErrors = {
+  authZero: /["']auth["']\s*:\s*(?:"?0"?|false)/i,
+  authWords: /invalid[ _-]?(?:user|login|credential|password|account|auth|username)|(?:wrong|incorrect|bad)[ _-]?(?:user|password|credential|login)|unauthori[sz]ed|authentication[ _-]?failed|auth[ _-]?failed|access[ _-]?denied|user(?:name)?[ _-]?not[ _-]?found|credenziali|not[ _-]?authori[sz]ed/i,
+  /** 4xx that are about the request or the server, not about the account. */
+  notAboutAccount: [404, 405, 408, 413, 414, 429, 458],
+
+  /** True if an error response (non-2xx) means the credentials were refused. */
+  isRefused(status: number, body: string, login: boolean): boolean {
+    if (status === 401 || status === 403) return true;
+    if (this.authZero.test(body) || this.authWords.test(body)) return true;
+    // The login request depends only on address and credentials: any other 4xx is the account.
+    return login && status >= 400 && status <= 499 && this.notAboutAccount.indexOf(status) < 0;
+  },
+
+  /** True if a 2xx login body is the "nothing for you" answer some panels give to wrong credentials. */
+  isEmptyLogin(body: string): boolean {
+    const t = body.trim();
+    return t === '' || t === '[]' || t === '{}' || t === 'null' || t === '0';
+  },
+
+  refused(): XtreamException { return new XtreamException('Credenziali non valide', 'INVALID_CREDENTIALS'); },
+};
+
+/** The first few KB of an error response (enough for a message), never the whole body. */
+async function errorBody(response: HttpResponse): Promise<string> {
+  try {
+    const parts: Uint8Array[] = [];
+    let size = 0;
+    while (size < 4096) {
+      const chunk = await response.read();
+      if (chunk == null) break;
+      parts.push(chunk);
+      size += chunk.length;
+    }
+    const all = new Uint8Array(size);
+    let off = 0;
+    for (const p of parts) { all.set(p, off); off += p.length; }
+    return new TextDecoder('utf-8').decode(all.subarray(0, 4096));
+  } catch {
+    return '';
   }
 }
 
@@ -120,11 +171,9 @@ export class XtreamClient {
     let response: HttpResponse | null = null;
     try {
       response = await this.http.get(XtreamUrls.api(this.creds, action, params));
-      if (response.status === 401 || response.status === 403) {
-        throw new XtreamException('Credenziali non valide', 'INVALID_CREDENTIALS');
-      }
       if (!isSuccess(response.status)) {
-        throw new XtreamException(`Errore del server (${response.status})`, 'SERVER');
+        if (XtreamAuthErrors.isRefused(response.status, await errorBody(response), action == null)) throw XtreamAuthErrors.refused();
+        throw new XtreamException(`Errore del server (${response.status})`, 'SERVER', response.status);
       }
       return await block(response);
     } catch (e) {
@@ -137,6 +186,7 @@ export class XtreamClient {
 
   private async decode(action: string | null, params: [string, string][] = []): Promise<Json> {
     const text = await this.call(action, params, (r) => readText(r));
+    if (action == null && XtreamAuthErrors.isEmptyLogin(text)) throw XtreamAuthErrors.refused();
     try {
       return JSON.parse(text);
     } catch {
@@ -183,9 +233,7 @@ export class XtreamClient {
   async login(): Promise<XtreamLogin> {
     const dto = await this.decode(null);
     const user = field(dto, 'user_info');
-    if (!isObject(user) || (has(user, 'auth') && !flexBool(user.auth))) {
-      throw new XtreamException('Credenziali non valide', 'INVALID_CREDENTIALS');
-    }
+    if (!isObject(user) || (has(user, 'auth') && !flexBool(user.auth))) throw XtreamAuthErrors.refused();
     const status = flexString(user.status);
     if (status != null && status.toLowerCase() === 'expired') {
       throw new XtreamException("L'abbonamento è scaduto", 'ACCOUNT_EXPIRED');

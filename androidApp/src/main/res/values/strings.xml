@@ -46,6 +46,7 @@
     <string name="error_account_expired">L\'abbonamento risulta scaduto.</string>
     <string name="error_network">Impossibile raggiungere il server. Controlla l\'indirizzo e la connessione.</string>
     <string name="error_server">Il server ha risposto con un errore. Riprova più tardi.</string>
+    <string name="error_server_code">Il server ha risposto con un errore (codice %1$d). Riprova più tardi.</string>
     <string name="error_parse">Il server ha inviato una risposta non valida. Controlla l\'indirizzo del server.</string>
     <string name="error_generic">Si è verificato un errore: %1$s</string>
 

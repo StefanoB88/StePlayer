@@ -255,7 +255,13 @@ class AddSourceViewModel(private val app: StePlayerApp, private val editId: Long
     }
 }
 
-fun errorMessage(context: Context, e: Throwable): String = when (e) {
+fun errorMessage(context: Context, e: Throwable): String = when {
+    e is XtreamException && e.kind == XtreamException.Kind.SERVER && e.httpStatus != null ->
+        context.getString(R.string.error_server_code, e.httpStatus)
+    else -> errorMessageFor(context, e)
+}
+
+private fun errorMessageFor(context: Context, e: Throwable): String = when (e) {
     is XtreamException -> context.getString(
         when (e.kind) {
             XtreamException.Kind.INVALID_CREDENTIALS -> R.string.error_invalid_credentials

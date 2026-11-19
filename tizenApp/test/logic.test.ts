@@ -10,6 +10,7 @@ import { decodeSettings, defaultPlayerSettings } from '../src/core/settings/play
 import { ChannelZapper } from '../src/core/zap/channelZapper.ts';
 import { withScheme, upgradeIfXtream, withSchemes } from '../src/core/data/sourceRepository.ts';
 import { sizedArtwork } from '../src/core/util/artworkUrl.ts';
+import { XtreamAuthErrors } from '../src/core/xtream/client.ts';
 import { utcMs } from './helpers.ts';
 
 describe('retry and stall', () => {
@@ -271,5 +272,23 @@ describe('tracks (Kotlin Tracks.distinct / languageOf port)', () => {
     const always = { ...defaultPlayerSettings(), subtitleMode: 'ALWAYS' as const, preferredSubtitleLanguage: 'it' };
     assert.equal(Tracks.pickSubtitle([t('en', 'en', null), t('fr', 'fr', null, { isDefault: true })], always, ['it'], null)!.id, 'fr');
     assert.equal(Tracks.pickSubtitle([t('x', null, null)], always, ['it'], null)!.id, 'x');
+  });
+});
+
+describe('XtreamAuthErrors (port of XtreamLoginErrorsTest.kt)', () => {
+  test('wrong credentials in their many panel flavours', () => {
+    assert.ok(XtreamAuthErrors.isRefused(401, '', true));
+    assert.ok(XtreamAuthErrors.isRefused(403, '', false));
+    for (const s of [400, 406, 410, 461]) assert.ok(XtreamAuthErrors.isRefused(s, '', true), `HTTP ${s}`);
+    assert.ok(XtreamAuthErrors.isRefused(404, '{"user_info":{"auth":0}}', true));
+    assert.ok(XtreamAuthErrors.isRefused(500, 'INVALID_CREDENTIALS', true));
+    assert.ok(XtreamAuthErrors.isRefused(512, 'Invalid username or password', true));
+    assert.ok(XtreamAuthErrors.isRefused(404, 'User not found', true));
+    for (const b of ['', '[]', 'null', '{}']) assert.ok(XtreamAuthErrors.isEmptyLogin(b), `«${b}»`);
+  });
+  test('real server problems stay server errors', () => {
+    for (const s of [500, 502, 503, 404, 429]) assert.ok(!XtreamAuthErrors.isRefused(s, '<html>Service unavailable</html>', true), `HTTP ${s}`);
+    assert.ok(!XtreamAuthErrors.isRefused(400, '', false), 'a 400 on a list request is not about credentials');
+    assert.ok(!XtreamAuthErrors.isEmptyLogin('{"user_info":{"auth":1}}'));
   });
 });

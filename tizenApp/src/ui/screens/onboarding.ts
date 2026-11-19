@@ -19,7 +19,8 @@ const PRIVACY = 'Tutti i dati restano su questo televisore. Nessun account, ness
 
 /** Same wording as the Android errorMessage(): the core throws errors with a `kind` or an Italian message. */
 export function errorMessage(e: unknown): string {
-  const err = e as { kind?: string; message?: string } | null;
+  const err = e as { kind?: string; message?: string; httpStatus?: number | null } | null;
+  if (err && err.kind === 'SERVER' && err.httpStatus) return `Il server ha risposto con un errore (codice ${err.httpStatus}). Riprova più tardi.`;
   switch (err && err.kind) {
     case 'INVALID_CREDENTIALS': return 'Username o password non validi.';
     case 'ACCOUNT_EXPIRED': return "L'abbonamento risulta scaduto.";

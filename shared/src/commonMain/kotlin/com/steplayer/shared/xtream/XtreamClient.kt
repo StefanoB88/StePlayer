@@ -25,8 +25,42 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlin.io.encoding.Base64
 
-class XtreamException(message: String, val kind: Kind, cause: Throwable? = null) : Exception(message, cause) {
+class XtreamException(
+    message: String,
+    val kind: Kind,
+    cause: Throwable? = null,
+    /** HTTP status of the failed response, when there was one (shown to help diagnose [Kind.SERVER]). */
+    val httpStatus: Int? = null,
+) : Exception(message, cause) {
     enum class Kind { INVALID_CREDENTIALS, ACCOUNT_EXPIRED, NETWORK, SERVER, PARSE }
+}
+
+/**
+ * Panels don't agree on how to say "wrong username or password": besides 401/403 and
+ * `{"user_info":{"auth":0}}` with 200, some answer 400/406/4xx, others an error status with a
+ * text or JSON body that says so, others an empty body or `[]`.
+ */
+internal object XtreamAuthErrors {
+    private val authZero = Regex("""["']auth["']\s*:\s*(?:"?0"?|false)""", RegexOption.IGNORE_CASE)
+    private val authWords = Regex(
+        """invalid[ _-]?(?:user|login|credential|password|account|auth|username)|(?:wrong|incorrect|bad)[ _-]?(?:user|password|credential|login)|unauthori[sz]ed|authentication[ _-]?failed|auth[ _-]?failed|access[ _-]?denied|user(?:name)?[ _-]?not[ _-]?found|credenziali|not[ _-]?authori[sz]ed""",
+        RegexOption.IGNORE_CASE,
+    )
+    /** 4xx that are about the request or the server, not about the account. */
+    private val notAboutAccount = setOf(404, 405, 408, 413, 414, 429, 458)
+
+    /** True if an error response (non-2xx) means the credentials were refused. */
+    fun isRefused(status: Int, body: String, login: Boolean): Boolean {
+        if (status == 401 || status == 403) return true
+        if (authZero.containsMatchIn(body) || authWords.containsMatchIn(body)) return true
+        // The login request depends only on address and credentials: any other 4xx is the account.
+        return login && status in 400..499 && status !in notAboutAccount
+    }
+
+    /** True if a 2xx login body is the "nothing for you" answer some panels give to wrong credentials. */
+    fun isEmptyLogin(body: String): Boolean = body.trim().let { it.isEmpty() || it == "[]" || it == "{}" || it == "null" || it == "0" }
+
+    fun refused() = XtreamException("Credenziali non valide", XtreamException.Kind.INVALID_CREDENTIALS)
 }
 
 internal val XtreamJson = Json {
@@ -70,11 +104,10 @@ internal class XtreamClient(
             params.forEach { (k, v) -> parameter(k, v) }
             userAgent?.let { header(HttpHeaders.UserAgent, it) }
         }.execute { response ->
-            if (response.status.value == 401 || response.status.value == 403) {
-                throw XtreamException("Credenziali non valide", XtreamException.Kind.INVALID_CREDENTIALS)
-            }
+            val status = response.status.value
             if (!response.status.isSuccess()) {
-                throw XtreamException("Errore del server (${response.status.value})", XtreamException.Kind.SERVER)
+                if (XtreamAuthErrors.isRefused(status, errorBody(response), login = action == null)) throw XtreamAuthErrors.refused()
+                throw XtreamException("Errore del server ($status)", XtreamException.Kind.SERVER, httpStatus = status)
             }
             block(response)
         }
@@ -86,8 +119,26 @@ internal class XtreamClient(
         throw XtreamException("Impossibile contattare il server: ${e.message ?: e::class.simpleName}", XtreamException.Kind.NETWORK, e)
     }
 
+    /** The first few KB of an error response (enough for a message), never the whole body. */
+    private suspend fun errorBody(response: HttpResponse): String = try {
+        val channel = response.bodyAsChannel()
+        val buffer = ByteArray(4 * 1024)
+        var size = 0
+        while (size < buffer.size) {
+            val n = channel.readAvailable(buffer, size, buffer.size - size)
+            if (n <= 0) break
+            size += n
+        }
+        buffer.decodeToString(0, size)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        ""
+    }
+
     private suspend fun <T> decode(action: String?, strategy: DeserializationStrategy<T>, vararg params: Pair<String, String>): T {
         val text = call(action, *params) { it.bodyAsText() }
+        if (action == null && XtreamAuthErrors.isEmptyLogin(text)) throw XtreamAuthErrors.refused()
         return try {
             XtreamJson.decodeFromString(strategy, text)
         } catch (e: Exception) {
@@ -131,9 +182,7 @@ internal class XtreamClient(
     suspend fun login(): XtreamLogin {
         val dto = decode(null, AuthResponseDto.serializer())
         val user = dto.userInfo
-        if (user == null || user.auth == false) {
-            throw XtreamException("Credenziali non valide", XtreamException.Kind.INVALID_CREDENTIALS)
-        }
+        if (user == null || user.auth == false) throw XtreamAuthErrors.refused()
         val status = user.status
         if (status != null && status.equals("Expired", ignoreCase = true)) {
             throw XtreamException("L'abbonamento è scaduto", XtreamException.Kind.ACCOUNT_EXPIRED)
