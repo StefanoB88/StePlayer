@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type { Channel, Core, SyncState } from '../src/core/api.ts';
 import { ALL_CATEGORY, FAVORITES_CATEGORY, RECENT_CATEGORY } from '../src/core/api.ts';
-import { XtreamException } from '../src/core/index.ts';
+import { HttpError, XtreamException } from '../src/core/index.ts';
 import { XtreamClient, vodStreamDto } from '../src/core/xtream/client.ts';
 import { fakeHttp, gzip, newCore, xmltvTime } from './helpers.ts';
 
@@ -59,7 +59,7 @@ describe('API Xtream end to end', () => {
     const core = await newCore(http);
 
     await assert.rejects(core.sources.add({ kind: 'xtream', name: 'Test', serverUrl: 'srv.example:8080', username: 'u', password: 'wrong' }),
-      (e: unknown) => e instanceof XtreamException && e.kind === 'INVALID_CREDENTIALS' && e.message === 'Credenziali non valide');
+      (e: unknown) => e instanceof XtreamException && e.kind === 'INVALID_CREDENTIALS' && e.message === 'Username o password non validi.');
 
     // Pasting the "get.php" M3U link must upgrade to API Xtream.
     const id = await core.sources.add({ kind: 'm3u', name: 'Lista di prova', listUrl: 'http://srv.example:8080/get.php?username=u&password=secret&type=m3u_plus' });
@@ -76,7 +76,10 @@ describe('API Xtream end to end', () => {
     const off = core.sync.onState((s) => states.push(s));
     await core.sync.sync(id);
     off();
-    assert.deepEqual(states.map((s) => (s.kind === 'running' ? s.step : s.kind)), ['AUTHENTICATING', 'LIVE', 'MOVIES', 'SERIES', 'EPG', 'done']);
+    const steps = states.map((s) => (s.kind === 'running' ? s.step : s.kind)).filter((s, i, all) => i === 0 || s !== all[i - 1]);
+    assert.deepEqual(steps, ['AUTHENTICATING', 'LIVE', 'MOVIES', 'SERIES', 'SAVING', 'EPG', 'done']);
+    const progress = states.map((s) => (s.kind === 'running' ? s.progress : null)).filter((p): p is number => p != null);
+    assert.deepEqual(progress, progress.slice().sort((a, b) => a - b), 'progress never goes back');
     const synced = await core.sources.byId(id);
     assert.ok(synced);
     assert.equal(synced.serverTimeOffsetSec, 3600);
@@ -183,12 +186,14 @@ describe('API Xtream end to end', () => {
     const expired = fakeHttp(() => ({ body: '{"user_info":{"auth":1,"status":"Expired"}}' }));
     const core = await newCore(expired);
     await assert.rejects(core.sources.add({ kind: 'xtream', name: 'X', serverUrl: 'srv.example', username: 'u', password: 'p' }),
-      (e: unknown) => e instanceof XtreamException && e.kind === 'ACCOUNT_EXPIRED' && e.message === "L'abbonamento è scaduto");
+      (e: unknown) => e instanceof XtreamException && e.kind === 'ACCOUNT_EXPIRED' && e.message === "L'abbonamento risulta scaduto. Rinnovalo presso il provider.");
     const down = await newCore(fakeHttp(() => ({ status: 500, body: 'no' })));
-    await assert.rejects(down.sources.add({ kind: 'xtream', name: 'X', serverUrl: 'srv.example', username: 'u', password: 'p' }), /Errore del server \(500\)/);
+    await assert.rejects(down.sources.add({ kind: 'xtream', name: 'X', serverUrl: 'srv.example', username: 'u', password: 'p' }), (e: unknown) => e instanceof XtreamException && e.kind === 'SERVER' && e.httpStatus === 500
+        && e.message === "Il server del provider ha un problema interno (errore 500). Non dipende dall'app né dalla tua rete: riprova più tardi.");
     const offline = await newCore(fakeHttp(() => { throw new Error('rete assente'); }));
     await assert.rejects(offline.sources.add({ kind: 'xtream', name: 'X', serverUrl: 'srv.example', username: 'u', password: 'p' }),
-      (e: unknown) => e instanceof XtreamException && e.kind === 'NETWORK' && e.message === 'Impossibile contattare il server: rete assente');
+      (e: unknown) => e instanceof XtreamException && e.kind === 'UNREACHABLE' && e.isConnectivity
+        && e.message === "Impossibile contattare il server del provider («srv.example»): l'indirizzo potrebbe essere sbagliato, il server spento o la connessione assente.");
   });
 
   test('a failing sync keeps the previous catalog and reports the error', async () => {
@@ -207,7 +212,7 @@ describe('API Xtream end to end', () => {
     broken = true;
     await assert.rejects(core.sync.sync(id), (e: unknown) => e instanceof XtreamException && e.kind === 'PARSE');
     const st = core.sync.state();
-    assert.ok(st.kind === 'failed' && st.message === 'Risposta del server non valida (get_vod_streams)');
+    assert.ok(st.kind === 'failed' && st.message === 'Il server ha inviato dati non validi (get_vod_streams). Riprova più tardi; se succede sempre, contatta il provider.');
     assert.equal((await core.catalog.channels(id, ALL_CATEGORY)).length, 2);
     assert.equal((await core.catalog.movies(id, ALL_CATEGORY)).length, 2);
   });
@@ -294,9 +299,53 @@ describe('M3U end to end', () => {
   test('HTTP error is reported in Italian', async () => {
     const core = await newCore(fakeHttp(() => ({ status: 404, body: 'x' })));
     const id = await core.sources.add({ kind: 'm3u', name: 'Lista', listUrl: 'http://pl.example/l.m3u' });
-    await assert.rejects(core.sync.sync(id), /La lista ha risposto con errore 404/);
+    await assert.rejects(core.sync.sync(id), (e: unknown) => e instanceof XtreamException && e.kind === 'NOT_FOUND' && e.httpStatus === 404);
     const st = core.sync.state();
-    assert.ok(st.kind === 'failed' && st.message === 'La lista ha risposto con errore 404');
+    assert.ok(st.kind === 'failed' && st.message === 'La lista non si trova più a questo indirizzo (errore 404): il link è sbagliato o scaduto.');
+  });
+
+  test('list and guide failures get precise messages (NetworkErrors)', async () => {
+    let fail: 'fetch' | 'midway' | 'guide403' | null = 'fetch';
+    const big = '#EXTM3U x-tvg-url="http://epg.example:8081/g.xml"\n#EXTINF:-1 tvg-id="c1",Canale Uno\nhttp://cdn.example/1.ts\n';
+    const http = fakeHttp((url) => {
+      if (url.hostname === 'epg.example') return fail === 'guide403' ? { status: 403, body: '' } : { body: '<tv></tv>' };
+      if (fail === 'fetch') throw new TypeError('Failed to fetch');
+      if (fail === 'midway') {
+        return { stream: function* () { yield new TextEncoder().encode(big); throw new HttpError('Connessione interrotta durante il download', 'interrupted'); } };
+      }
+      return { body: big };
+    });
+    const core = await newCore(http);
+    const id = await core.sources.add({ kind: 'm3u', name: 'Lista', listUrl: 'http://u:pw@pl.example:8080/l.m3u?password=pw' });
+    await assert.rejects(core.sync.sync(id), (e: unknown) => e instanceof XtreamException && e.kind === 'UNREACHABLE'
+      && e.message === "Impossibile contattare il server della lista («pl.example:8080»): l'indirizzo potrebbe essere sbagliato, il server spento o la connessione assente.");
+    fail = 'midway';
+    await assert.rejects(core.sync.sync(id), (e: unknown) => e instanceof XtreamException && e.kind === 'NETWORK'
+      && e.message === 'La connessione con il server della lista si è interrotta. Riprova.');
+    fail = null;
+    await core.sync.sync(id);
+    fail = 'guide403';
+    const source = await core.sources.byId(id);
+    assert.ok(source);
+    await assert.rejects(core.epg.refresh(source), (e: unknown) => e instanceof XtreamException && e.kind === 'INVALID_CREDENTIALS'
+      && e.message === "Accesso negato (errore 403): il link della guida TV non è più valido o l'abbonamento è scaduto.");
+  });
+
+  test('M3U progress grows while the list is read', async () => {
+    const lines = ['#EXTM3U'];
+    for (let i = 0; i < 6000; i++) lines.push(`#EXTINF:-1 group-title="G",Canale ${i}`, `http://cdn.example/${i}.ts`);
+    const core = await newCore(fakeHttp(() => ({ body: lines.join('\n'), chunk: 4096 })));
+    const id = await core.sources.add({ kind: 'm3u', name: 'Lista', listUrl: 'http://pl.example/l.m3u' });
+    const states: SyncState[] = [];
+    const off = core.sync.onState((st) => states.push(st));
+    await core.sync.sync(id);
+    off();
+    const live = states.filter((st) => st.kind === 'running' && st.step === 'LIVE').map((st) => (st.kind === 'running' ? st.progress : 0));
+    assert.equal(live[0], 0.1);
+    assert.ok(live.length >= 6, `updates every 2000 lines (${live.length})`);
+    assert.ok(live.every((p, i) => p <= 0.85 && (i === 0 || p > live[i - 1])), live.join(', '));
+    const steps = states.map((st) => (st.kind === 'running' ? st.step : st.kind)).filter((st, i, all) => i === 0 || st !== all[i - 1]);
+    assert.deepEqual(steps, ['AUTHENTICATING', 'LIVE', 'SAVING', 'EPG', 'done']);
   });
 
   test('gzip M3U and syncIfStale', async () => {

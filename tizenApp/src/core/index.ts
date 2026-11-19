@@ -23,7 +23,10 @@ import { ChannelZapper } from './zap/channelZapper.ts';
 export * from './api.ts';
 export type { Http, HttpResponse } from './net/http.ts';
 export { HttpError, createFetchHttp } from './net/http.ts';
-export { XtreamException } from './xtream/client.ts';
+export { XtreamException, isConnectivity } from './xtream/client.ts';
+export type { XtreamErrorKind } from './xtream/client.ts';
+export { NetworkErrors } from './net/networkErrors.ts';
+export type { NetworkTarget } from './net/networkErrors.ts';
 export { StreamException } from './data/streamResolver.ts';
 export { contentKey } from './settings/playerPreferences.ts';
 
@@ -88,7 +91,7 @@ export async function createCore(options: CoreOptions = {}): Promise<Core> {
       if (e instanceof XtreamException) {
         if (e.kind === 'ACCOUNT_EXPIRED') return PlaybackErrors.expired();
         if (e.kind === 'INVALID_CREDENTIALS') return PlaybackErrors.fromHttpStatus(401);
-        if (e.kind === 'NETWORK') return PlaybackErrors.network();
+        if (e.isConnectivity) return PlaybackErrors.network();
         return null;
       }
       throw e;

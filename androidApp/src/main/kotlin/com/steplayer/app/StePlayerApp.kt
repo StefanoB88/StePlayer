@@ -50,6 +50,9 @@ class StePlayerApp : Application(), SingletonImageLoader.Factory, WorkConfigurat
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** "Aggiorna" / "Sincronizza ora": sync shown in the blocking progress dialog. */
+    val userSync: com.steplayer.app.ui.sync.UserSync by lazy { com.steplayer.app.ui.sync.UserSync(this) }
+
     val prefs: AppPrefs by lazy { AppPrefs(this) }
 
     val userAgent: String by lazy { "StePlayer/${BuildConfig.VERSION_NAME} (Android)" }

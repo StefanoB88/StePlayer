@@ -42,12 +42,7 @@
     <string name="cancel">Annulla</string>
     <string name="connecting">Connessione in corso…</string>
     <string name="error_required">Compila tutti i campi obbligatori</string>
-    <string name="error_invalid_credentials">Username o password non validi.</string>
-    <string name="error_account_expired">L\'abbonamento risulta scaduto.</string>
     <string name="error_network">Impossibile raggiungere il server. Controlla l\'indirizzo e la connessione.</string>
-    <string name="error_server">Il server ha risposto con un errore. Riprova più tardi.</string>
-    <string name="error_server_code">Il server ha risposto con un errore (codice %1$d). Riprova più tardi.</string>
-    <string name="error_parse">Il server ha inviato una risposta non valida. Controlla l\'indirizzo del server.</string>
     <string name="error_generic">Si è verificato un errore: %1$s</string>
 
     <!-- Sync -->
@@ -292,7 +287,10 @@
     <string name="refresh_running">Aggiornamento in corso</string>
     <string name="refresh_a11y">Aggiorna la lista di canali, film, serie e guida TV</string>
     <string name="refresh_done">Lista aggiornata</string>
-    <string name="refresh_failed">Aggiornamento non riuscito. %1$s</string>
+    <string name="refresh_failed_title">Aggiornamento non riuscito</string>
+    <string name="refresh_dialog_title">Aggiornamento della lista</string>
+    <string name="refresh_dialog_wait">Attendi il completamento: ci vuole qualche istante.</string>
+    <string name="close">Chiudi</string>
     <string name="send_tv_title">Invia una lista alla TV</string>
     <string name="send_tv_desc">Per i televisori Samsung: niente da scrivere col telecomando</string>
     <string name="send_tv_step1">1. Sul televisore apri StePlayer e scegli Aggiungi lista → Usa il telefono</string>

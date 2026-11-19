@@ -55,8 +55,7 @@ class PlaybackManager internal constructor(
             when (e.kind) {
                 XtreamException.Kind.ACCOUNT_EXPIRED -> PlaybackErrors.expired()
                 XtreamException.Kind.INVALID_CREDENTIALS -> PlaybackErrors.fromHttpStatus(401)
-                XtreamException.Kind.NETWORK -> PlaybackErrors.network()
-                else -> null
+                else -> if (e.kind.isConnectivity) PlaybackErrors.network() else null
             }
         }
     }

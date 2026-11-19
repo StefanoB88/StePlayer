@@ -6,6 +6,8 @@
 
 export interface HttpResponse {
   readonly status: number;
+  /** Content-Length of the body when the server sent it (progress by bytes), else null/absent. */
+  readonly contentLength?: number | null;
   /** Next body chunk, or null at the end. Rejects on network errors/timeouts. */
   read(): Promise<Uint8Array | null>;
   /** Stops the download and frees the connection. Safe to call more than once. */
@@ -16,14 +18,23 @@ export interface Http {
   get(url: string): Promise<HttpResponse>;
 }
 
+/**
+ * Why a request failed, as far as a web page can tell: the browser hides the real cause of a failed
+ * fetch (DNS, refused, TLS, mixed content all look the same), only our own timeouts and a drop
+ * while reading the body are known for sure.
+ */
+export type HttpFailure = 'connect' | 'timeout' | 'interrupted';
+
 /** Network failure with an Italian message (never contains the URL: it may carry credentials). */
 export class HttpError extends Error {
-  readonly timeout: boolean;
-  constructor(message: string, timeout = false) {
+  readonly failure: HttpFailure;
+  constructor(message: string, failure: HttpFailure = 'connect') {
     super(message);
     this.name = 'HttpError';
-    this.timeout = timeout;
+    this.failure = failure;
   }
+
+  get timeout(): boolean { return this.failure === 'timeout'; }
 }
 
 export function isSuccess(status: number): boolean {
@@ -65,7 +76,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, onTimeout: () => void): Promi
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       onTimeout();
-      reject(new HttpError('Il server non risponde (tempo scaduto)', true));
+      reject(new HttpError('Il server non risponde (tempo scaduto)', 'timeout'));
     }, ms);
     p.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
   });
@@ -113,8 +124,10 @@ export function createFetchHttp(options: FetchHttpOptions = {}): Http {
       if (reader) reader.cancel().catch(() => undefined);
       if (ctrl) ctrl.abort();
     };
+    const length = parseInt(response.headers ? response.headers.get('content-length') || '' : '', 10);
     return {
       status: response.status,
+      contentLength: length > 0 ? length : null,
       async read(): Promise<Uint8Array | null> {
         if (done) return null;
         if (!reader) {
@@ -129,7 +142,7 @@ export function createFetchHttp(options: FetchHttpOptions = {}): Http {
         } catch (e) {
           cancel();
           if (e instanceof HttpError) throw e;
-          throw new HttpError('Connessione interrotta durante il download');
+          throw new HttpError('Connessione interrotta durante il download', 'interrupted');
         }
         if (r.done || !r.value) { done = true; reader = null; return null; }
         return r.value;

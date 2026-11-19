@@ -1,5 +1,6 @@
 package com.steplayer.shared
 
+import com.steplayer.shared.net.NetworkErrors
 import com.steplayer.shared.data.CatalogRepository
 import com.steplayer.shared.data.DownloadRepository
 import com.steplayer.shared.data.EpgRepository
@@ -23,6 +24,8 @@ import com.steplayer.shared.search.SmartSearch
  * (Android: Application; iOS: App struct) and keep it for the app lifetime.
  */
 class StePlayerCore(platform: PlatformDependencies) {
+    init { NetworkErrors.status = platform::networkStatus }
+
     private val driver = platform.createSqlDriver()
     private val database = StePlayerDatabase(driver)
     private val http = platform.createHttpClient()

@@ -2,26 +2,17 @@
 import type { AccountInfo, EpgProgram } from '../api.ts';
 import type { Http, HttpResponse } from '../net/http.ts';
 import { isSuccess, readText } from '../net/http.ts';
+import { NetworkErrors } from '../net/networkErrors.ts';
 import { parseSqlDateTime } from '../util/time.ts';
 import type { Json } from './flex.ts';
 import { field, flexBool, flexDouble, flexInt, flexLong, flexString, isObject } from './flex.ts';
 import { JsonArraySplitter, JsonArraySplitterError } from './jsonArraySplitter.ts';
 import type { XtreamCredentials } from './urls.ts';
 import { XtreamUrls } from './urls.ts';
+import { XtreamException } from './xtreamException.ts';
 
-export type XtreamErrorKind = 'INVALID_CREDENTIALS' | 'ACCOUNT_EXPIRED' | 'NETWORK' | 'SERVER' | 'PARSE';
-
-export class XtreamException extends Error {
-  readonly kind: XtreamErrorKind;
-  /** HTTP status of the failed response, when there was one (shown to help diagnose SERVER). */
-  readonly httpStatus: number | null;
-  constructor(message: string, kind: XtreamErrorKind, httpStatus: number | null = null) {
-    super(message);
-    this.name = 'XtreamException';
-    this.kind = kind;
-    this.httpStatus = httpStatus;
-  }
-}
+export { XtreamException, isConnectivity } from './xtreamException.ts';
+export type { XtreamErrorKind } from './xtreamException.ts';
 
 /**
  * Port of XtreamAuthErrors (XtreamClient.kt). Panels don't agree on how to say "wrong username or
@@ -48,7 +39,7 @@ export const XtreamAuthErrors = {
     return t === '' || t === '[]' || t === '{}' || t === 'null' || t === '0';
   },
 
-  refused(): XtreamException { return new XtreamException('Credenziali non valide', 'INVALID_CREDENTIALS'); },
+  refused(): XtreamException { return new XtreamException('Username o password non validi.', 'INVALID_CREDENTIALS'); },
 };
 
 /** The first few KB of an error response (enough for a message), never the whole body. */
@@ -137,10 +128,21 @@ function decodeElement<T>(bytes: Uint8Array, length: number, decoder: DtoDecoder
   try {
     value = JSON.parse(utf8.decode(bytes.subarray(0, length)));
   } catch {
-    throw new XtreamException(`Risposta del server non valida (${action})`, 'PARSE');
+    throw invalidData(action);
   }
-  if (!isObject(value)) throw new XtreamException(`Risposta del server non valida (${action})`, 'PARSE');
+  if (!isObject(value)) throw invalidData(action);
   return decoder(value);
+}
+
+function invalidData(action: string): XtreamException {
+  return new XtreamException(
+    `Il server ha inviato dati non validi (${action}). Riprova più tardi; se succede sempre, contatta il provider.`, 'PARSE');
+}
+
+/** The login answer isn't JSON from an Xtream panel: typically a web page at the wrong address/port. */
+function notXtream(): XtreamException {
+  return new XtreamException(
+    'Il server ha risposto, ma non come un server compatibile (API Xtream). Controlla indirizzo e porta.', 'PARSE');
 }
 
 // ---------------------------------------------------------------- client
@@ -166,46 +168,61 @@ export class XtreamClient {
     this.creds = creds;
   }
 
-  /** Runs block on the streamed response. Network failures — also while reading — become XtreamException. */
+  /**
+   * Runs block on the streamed response. Network failures — also while reading — become
+   * XtreamException with a precise message (NetworkErrors); anything else thrown by block once the
+   * answer arrived (e.g. a storage error while persisting items) keeps its own.
+   */
   private async call<R>(action: string | null, params: [string, string][], block: (r: HttpResponse) => Promise<R>): Promise<R> {
     let response: HttpResponse | null = null;
     try {
       response = await this.http.get(XtreamUrls.api(this.creds, action, params));
       if (!isSuccess(response.status)) {
         if (XtreamAuthErrors.isRefused(response.status, await errorBody(response), action == null)) throw XtreamAuthErrors.refused();
-        throw new XtreamException(`Errore del server (${response.status})`, 'SERVER', response.status);
+        throw NetworkErrors.fromStatus(response.status, 'SERVER');
       }
       return await block(response);
     } catch (e) {
       if (response) response.cancel();
       if (e instanceof XtreamException) throw e;
-      const msg = e instanceof Error && e.message ? e.message : String(e);
-      throw new XtreamException(`Impossibile contattare il server: ${msg}`, 'NETWORK');
+      if (response == null || NetworkErrors.isNetworkFailure(e)) throw NetworkErrors.fromThrowable(e, this.creds.baseUrl, 'SERVER');
+      throw e;
     }
   }
 
   private async decode(action: string | null, params: [string, string][] = []): Promise<Json> {
     const text = await this.call(action, params, (r) => readText(r));
     if (action == null && XtreamAuthErrors.isEmptyLogin(text)) throw XtreamAuthErrors.refused();
+    let value: Json;
     try {
-      return JSON.parse(text);
+      value = JSON.parse(text);
     } catch {
-      throw new XtreamException('Risposta del server non valida', 'PARSE');
+      throw action == null ? notXtream() : invalidData(action);
     }
+    if (action == null && !isObject(value)) throw notXtream();
+    return value;
   }
 
   /**
    * Lists may come back as `[]`, `{}` (empty), or `null` on some servers. Decoded in streaming,
    * one array element at a time: a 100k-title catalog never exists in memory as one big body.
-   * onItems receives each decoded chunk of items (await it to apply backpressure).
+   * onItems receives each decoded chunk of items (await it to apply backpressure). onRead, if given,
+   * is told the body bytes received so far and the Content-Length (null when unknown), for progress.
    */
-  async streamList<T>(action: string, decoder: DtoDecoder<T>, onItems: (items: T[]) => Promise<void> | void): Promise<void> {
+  async streamList<T>(
+    action: string, decoder: DtoDecoder<T>, onItems: (items: T[]) => Promise<void> | void,
+    onRead?: (bytes: number, total: number | null) => void,
+  ): Promise<void> {
     await this.call(action, [], async (response) => {
       let pending: T[] = [];
+      let bytes = 0;
+      const total = response.contentLength != null && response.contentLength > 0 ? response.contentLength : null;
       const splitter = new JsonArraySplitter((b, n) => { pending.push(decodeElement(b, n, decoder, action)); });
       while (!splitter.isDone) {
         const chunk = await response.read();
         if (chunk == null) break;
+        bytes += chunk.length;
+        if (onRead) onRead(bytes, total);
         splitter.feed(chunk);
         if (pending.length > 0) {
           const items = pending;
@@ -217,7 +234,7 @@ export class XtreamClient {
       try {
         splitter.finish();
       } catch (e) {
-        if (e instanceof JsonArraySplitterError) throw new XtreamException(`Risposta del server non valida (${action})`, 'PARSE');
+        if (e instanceof JsonArraySplitterError) throw invalidData(action);
         throw e;
       }
       if (pending.length > 0) await onItems(pending);
@@ -236,7 +253,7 @@ export class XtreamClient {
     if (!isObject(user) || (has(user, 'auth') && !flexBool(user.auth))) throw XtreamAuthErrors.refused();
     const status = flexString(user.status);
     if (status != null && status.toLowerCase() === 'expired') {
-      throw new XtreamException("L'abbonamento è scaduto", 'ACCOUNT_EXPIRED');
+      throw new XtreamException("L'abbonamento risulta scaduto. Rinnovalo presso il provider.", 'ACCOUNT_EXPIRED');
     }
     const server = field(dto, 'server_info');
     const offset = computeServerOffset(flexString(field(server, 'time_now')), flexLong(field(server, 'timestamp_now')));

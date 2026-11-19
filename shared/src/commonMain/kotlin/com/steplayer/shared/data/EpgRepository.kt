@@ -18,7 +18,10 @@ import com.steplayer.shared.util.nowMillis
 import com.steplayer.shared.util.runCatchingCancellable
 import com.steplayer.shared.util.wrap
 import com.steplayer.shared.util.wrapOr
+import com.steplayer.shared.net.NetworkErrors
 import com.steplayer.shared.xtream.XtreamClient
+import com.steplayer.shared.xtream.XtreamException
+import kotlinx.coroutines.CancellationException
 import com.steplayer.shared.xtream.XtreamUrls
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
@@ -86,11 +89,13 @@ class EpgRepository internal constructor(
             batch.clear()
         }
 
+        var receiving = false
         try {
             http.prepareGet(url) {
                 header(HttpHeaders.UserAgent, source.userAgent ?: defaultUserAgent)
             }.execute { response ->
-                if (!response.status.isSuccess()) error("EPG HTTP ${response.status.value}")
+                if (!response.status.isSuccess()) throw NetworkErrors.fromStatus(response.status.value, NetworkErrors.Target.GUIDE)
+                receiving = true
                 val body = response.bodyAsChannel()
                 withContext(Dispatchers.IO) {
                     val parser = XmltvParser { p ->
@@ -117,6 +122,14 @@ class EpgRepository internal constructor(
                 runCatching { searchIndex.rebuildEpg(source.id) }
                 q.markEpgSynced(nowMillis(), source.id)
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: XtreamException) {
+            throw e
+        } catch (e: Throwable) {
+            // Precise message for network failures; storage/parsing errors keep their own.
+            if (!receiving || NetworkErrors.causeOf(e) != null) throw NetworkErrors.fromThrowable(e, url, NetworkErrors.Target.GUIDE)
+            throw e
         } finally {
             if (touched) driver.notifyListeners(EPG_TABLE)
         }

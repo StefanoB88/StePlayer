@@ -19,12 +19,14 @@ import com.steplayer.shared.util.runCatchingCancellable
 import com.steplayer.shared.util.stableHash
 import com.steplayer.shared.util.wrap
 import com.steplayer.shared.xtream.XtreamClient
+import com.steplayer.shared.net.NetworkErrors
 import com.steplayer.shared.xtream.XtreamException
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
+import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.CancellationException
@@ -75,11 +77,12 @@ class SyncManager internal constructor(
                 SourceType.XTREAM -> syncXtream(source)
                 SourceType.M3U -> syncM3u(source)
             }
+            _state.value = SyncState.Running(SyncStep.SAVING, 0.88f)
             withContext(Dispatchers.IO) {
                 runCatching { searchIndex.rebuildCatalog(source.id) } // search must never break sync
                 q.markSourceSynced(nowMillis(), source.id)
             }
-            _state.value = SyncState.Running(SyncStep.EPG, 0.95f)
+            _state.value = SyncState.Running(SyncStep.EPG, 0.92f)
             // EPG failures must never fail the catalog sync.
             runCatchingCancellable { epg.refresh(sources.byId(sourceId) ?: source) }
             _state.value = SyncState.Done
@@ -94,7 +97,7 @@ class SyncManager internal constructor(
 
     private suspend fun syncXtream(source: Source) = coroutineScope {
         val creds = sources.xtreamCredentials(source)
-            ?: throw XtreamException("Credenziali mancanti", XtreamException.Kind.INVALID_CREDENTIALS)
+            ?: throw XtreamException("Username e password mancanti: modifica la lista e inseriscili.", XtreamException.Kind.INVALID_CREDENTIALS)
         val client = XtreamClient(http, creds, source.userAgent ?: defaultUserAgent)
 
         _state.value = SyncState.Running(SyncStep.AUTHENTICATING, 0.02f)
@@ -128,6 +131,7 @@ class SyncManager internal constructor(
                 }
                 q.deleteChannels(source.id)
                 liveList.forEachIndexed { i, s ->
+                    report(SyncStep.LIVE, 0.1f, 0.35f, i, liveList.size)
                     val id = s.streamId ?: return@forEachIndexed
                     val name = s.name?.trim().orEmpty().ifEmpty { "Canale $id" }
                     q.insertChannel(
@@ -141,7 +145,7 @@ class SyncManager internal constructor(
             }
         }
 
-        _state.value = SyncState.Running(SyncStep.MOVIES, 0.4f)
+        _state.value = SyncState.Running(SyncStep.MOVIES, 0.35f)
         val vodList = vod.await()
         val vodCatList = vodCats.await()
         withContext(Dispatchers.IO) {
@@ -152,6 +156,7 @@ class SyncManager internal constructor(
                 }
                 q.deleteMovies(source.id)
                 vodList.forEachIndexed { i, m ->
+                    report(SyncStep.MOVIES, 0.35f, 0.6f, i, vodList.size)
                     val id = m.streamId ?: return@forEachIndexed
                     val name = m.name?.trim().orEmpty().ifEmpty { "Film $id" }
                     q.insertMovie(
@@ -164,7 +169,7 @@ class SyncManager internal constructor(
             }
         }
 
-        _state.value = SyncState.Running(SyncStep.SERIES, 0.7f)
+        _state.value = SyncState.Running(SyncStep.SERIES, 0.6f)
         val seriesList = series.await()
         val seriesCatList = seriesCats.await()
         withContext(Dispatchers.IO) {
@@ -175,6 +180,7 @@ class SyncManager internal constructor(
                 }
                 q.deleteSeries(source.id)
                 seriesList.forEachIndexed { i, s ->
+                    report(SyncStep.SERIES, 0.6f, 0.85f, i, seriesList.size)
                     val id = s.seriesId ?: return@forEachIndexed
                     val name = s.name?.trim().orEmpty().ifEmpty { "Serie $id" }
                     q.insertSeries(
@@ -194,12 +200,16 @@ class SyncManager internal constructor(
 
         val sink = M3uSink(source.id)
         var epgUrls: List<String> = emptyList()
+        var receiving = false
 
+        try {
         http.prepareGet(url) {
             header(HttpHeaders.UserAgent, source.userAgent ?: defaultUserAgent)
         }.execute { response ->
-            if (!response.status.isSuccess()) error("La lista ha risposto con errore ${response.status.value}")
+            if (!response.status.isSuccess()) throw NetworkErrors.fromStatus(response.status.value, NetworkErrors.Target.LIST)
+            receiving = true
             _state.value = SyncState.Running(SyncStep.LIVE, 0.1f)
+            val total = response.contentLength()?.takeIf { it > 0 }
             val channel = response.bodyAsChannel()
             withContext(Dispatchers.IO) {
                 // The blocking bridge below runs as a child of this coroutine, so cancelling the
@@ -211,9 +221,17 @@ class SyncManager internal constructor(
                     // Parsing inside the transaction keeps inserts fast (single fsync).
                     // Runs on Dispatchers.IO (never on a main thread).
                     kotlinx.coroutines.runBlocking(job) {
+                        var read = 0L
+                        var lines = 0
                         while (true) {
                             val line = channel.readUTF8Line() ?: break
                             parser.feed(line)
+                            read += line.length + 1
+                            if (++lines % 2_000 == 0) {
+                                // Size known: real fraction; unknown: creeps towards the end.
+                                val f = if (total != null) (read.toFloat() / total).coerceAtMost(1f) else 1f - 1f / (1f + lines / 40_000f)
+                                _state.value = SyncState.Running(SyncStep.LIVE, 0.1f + 0.75f * f)
+                            }
                         }
                     }
                     sink.finish()
@@ -221,9 +239,24 @@ class SyncManager internal constructor(
                 }
             }
         }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: XtreamException) {
+            throw e
+        } catch (e: Throwable) {
+            // Network failures (also while reading the list) get a precise message; anything
+            // else after the download started (e.g. storage) keeps its own.
+            if (!receiving || NetworkErrors.causeOf(e) != null) throw NetworkErrors.fromThrowable(e, url, NetworkErrors.Target.LIST)
+            throw e
+        }
         if (epgUrls.isNotEmpty()) {
             withContext(Dispatchers.IO) { q.updateSourceEpgUrl(epgUrls.first(), source.id) }
         }
+    }
+
+    /** Progress inside a step, from [from] to [to], updated every 500 items. */
+    private fun report(step: SyncStep, from: Float, to: Float, index: Int, size: Int) {
+        if (index % 500 == 0 && size > 0) _state.value = SyncState.Running(step, from + (to - from) * index / size)
     }
 
     /** Streams parsed M3U entries straight into the database. Must run inside a transaction. */

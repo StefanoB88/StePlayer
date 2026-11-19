@@ -17,19 +17,14 @@ export const DISCLAIMER_GATE = [
 ];
 const PRIVACY = 'Tutti i dati restano su questo televisore. Nessun account, nessun tracciamento.';
 
-/** Same wording as the Android errorMessage(): the core throws errors with a `kind` or an Italian message. */
+/**
+ * Same wording as the Android errorMessage(): errors from the core that carry a `kind` already have the
+ * full, precise Italian sentence as message (core/net/networkErrors.ts); plain errors get a fallback.
+ */
 export function errorMessage(e: unknown): string {
-  const err = e as { kind?: string; message?: string; httpStatus?: number | null } | null;
-  if (err && err.kind === 'SERVER' && err.httpStatus) return `Il server ha risposto con un errore (codice ${err.httpStatus}). Riprova più tardi.`;
-  switch (err && err.kind) {
-    case 'INVALID_CREDENTIALS': return 'Username o password non validi.';
-    case 'ACCOUNT_EXPIRED': return "L'abbonamento risulta scaduto.";
-    case 'NETWORK': return "Impossibile raggiungere il server. Controlla l'indirizzo e la connessione.";
-    case 'SERVER': return 'Il server ha risposto con un errore. Riprova più tardi.';
-    case 'PARSE': return 'Il server ha inviato una risposta non valida. Controlla l\'indirizzo del server.';
-    default: break;
-  }
+  const err = e as { kind?: string; message?: string } | null;
   const msg = err && err.message;
+  if (err && err.kind && msg) return msg;
   if (!msg) return "Impossibile raggiungere il server. Controlla l'indirizzo e la connessione.";
   if (/failed to fetch|network|load failed|timeout/i.test(msg)) return "Impossibile raggiungere il server. Controlla l'indirizzo e la connessione.";
   return msg;
@@ -223,7 +218,8 @@ function backButton(): HTMLElement {
 
 // ---------------------------------------------------------------------------------------------------------
 
-const STEP_LABEL: Record<string, string> = {
+/** Text of each sync step (first sync screen and the refresh popup). */
+export const STEP_LABEL: Record<string, string> = {
   AUTHENTICATING: 'Accesso al server…',
   LIVE: 'Scarico i canali live…',
   MOVIES: 'Scarico i film…',

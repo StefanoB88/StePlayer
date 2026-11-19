@@ -109,6 +109,7 @@ class MainActivity : FragmentActivity() {
                     ) {
                         startDestination?.let { AppNavHost(it, pendingRoute, onRouteHandled = { pendingRoute = null }) }
                     }
+                    com.steplayer.app.ui.sync.UserSyncDialogHost(app)
                 }
             }
         }

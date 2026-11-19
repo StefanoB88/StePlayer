@@ -10,6 +10,7 @@ import { Format } from '../format.ts';
 import { session } from '../session.ts';
 import { actions } from '../actions.ts';
 import { shell, type Tab, type TabId } from '../shell.ts';
+import { syncDialog } from './syncDialog.ts';
 
 interface HeroItem { sourceId: number; id: string; title: string; image: string | null; subtitle: string; isSeries: boolean }
 
@@ -79,10 +80,8 @@ export function homeTab(switchTab: (t: TabId) => void): Tab {
     refreshing = true;
     refreshIcon?.classList.add('spin');
     try {
-      await core.sync.sync(id);
-      app().toast('Lista aggiornata');
-    } catch (e) {
-      app().toast(`Aggiornamento non riuscito: ${(e as Error).message || ''}`);
+      // Blocking popup with step and progress; on failure it shows the reason with "Riprova" / "Chiudi".
+      await syncDialog(id, 'Lista aggiornata');
     } finally {
       refreshing = false;
       refreshIcon?.classList.remove('spin');

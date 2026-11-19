@@ -111,8 +111,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import com.steplayer.shared.model.SyncState
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.map
 
 @Immutable
@@ -170,23 +168,14 @@ class HomeViewModel(private val app: StePlayerApp) : ViewModel() {
     val refreshing: StateFlow<Boolean> = core.sync.state.map { it is SyncState.Running }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val messages: SharedFlow<String> = _messages
-
-    /** "Aggiorna": re-downloads channels, movies, series and TV guide of the active list. */
+    /**
+     * "Aggiorna": re-downloads channels, movies, series and TV guide of the active list, in the
+     * blocking progress dialog (also when an automatic sync is already running: the dialog
+     * follows it, then the requested sync).
+     */
     fun refresh() {
         val id = state.value.source?.id?.takeIf { it != SourceRepository.NO_SOURCE.id } ?: return
-        if (refreshing.value) return
-        // App scope: keeps going if the user leaves the Home screen.
-        app.appScope.launch {
-            val result = runCatching { core.sync.sync(id) }
-            _messages.tryEmit(
-                result.fold(
-                    onSuccess = { app.getString(com.steplayer.app.R.string.refresh_done) },
-                    onFailure = { app.getString(com.steplayer.app.R.string.refresh_failed, it.message ?: "") },
-                ),
-            )
-        }
+        app.userSync.start(id)
     }
 
     fun switchSource(id: Long) = viewModelScope.launch {
@@ -202,7 +191,6 @@ fun HomeScreen(actions: AppActions, onSwitchTab: (Tab) -> Unit) {
     val notices by vm.notices.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(vm) { vm.messages.collect { snackbar.showSnackbar(it) } }
     val isTv = LocalIsTv.current
     val wide = isTv || LocalConfiguration.current.screenWidthDp >= 600
     val posterWidth = if (wide) 150.dp else 118.dp

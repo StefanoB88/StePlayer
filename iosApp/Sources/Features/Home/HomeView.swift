@@ -195,14 +195,11 @@ struct HomeView: View {
 
     private func noticeKey(_ n: ExpiryNotice) -> String { "\(n.sourceId):\(n.daysLeft):\(n.expired)" }
 
-    /// "Aggiorna": re-downloads channels, movies, series and TV guide of the active list.
+    /// "Aggiorna": re-downloads channels, movies, series and TV guide of the active list,
+    /// behind the blocking progress popup (RootView `SyncProgressOverlay`).
     private func refresh() {
         guard app.activeId >= 0, !app.isSyncing else { return }
-        let id = app.activeId
-        Task {
-            await app.syncNow(id, blocking: false)
-            app.showToast(app.syncError.map { "Aggiornamento non riuscito. \($0)" } ?? "Lista aggiornata")
-        }
+        app.userSync(app.activeId)
     }
 }
 

@@ -2,6 +2,8 @@ package com.steplayer.shared.platform
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -9,6 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.steplayer.shared.db.StePlayerDatabase
+import com.steplayer.shared.net.NetworkStatus
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import java.io.File
@@ -52,6 +55,21 @@ class AndroidPlatform(
                 followSslRedirects(true)
             }
         }
+    }
+
+    /** From ConnectivityManager: Android itself checks whether Internet works (VALIDATED). */
+    override fun networkStatus(): NetworkStatus = try {
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        val network = cm?.activeNetwork
+        val caps = network?.let { cm.getNetworkCapabilities(it) }
+        when {
+            cm == null -> NetworkStatus.UNKNOWN
+            caps == null || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) -> NetworkStatus.OFFLINE
+            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) -> NetworkStatus.CONNECTED_NO_INTERNET
+            else -> NetworkStatus.ONLINE
+        }
+    } catch (e: Exception) {
+        NetworkStatus.UNKNOWN
     }
 
     override val downloadsDirectory: String

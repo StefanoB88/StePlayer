@@ -1,6 +1,7 @@
 package com.steplayer.shared.platform
 
 import app.cash.sqldelight.db.SqlDriver
+import com.steplayer.shared.net.NetworkStatus
 import io.ktor.client.HttpClient
 
 /**
@@ -24,4 +25,6 @@ interface PlatformDependencies {
     val prefersHlsLive: Boolean
     /** Default User-Agent sent to streaming servers. */
     val defaultUserAgent: String
+    /** What the OS knows about the connection, to tell "device offline" from "provider down". */
+    fun networkStatus(): NetworkStatus = NetworkStatus.UNKNOWN
 }

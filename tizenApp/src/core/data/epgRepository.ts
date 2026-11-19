@@ -3,10 +3,11 @@ import type { Channel, ChannelWithEpg, EpgProgram, Source } from '../api.ts';
 import { readTextStream } from '../epg/byteStreams.ts';
 import { XmltvParser } from '../epg/xmltvParser.ts';
 import { isSuccess } from '../net/http.ts';
+import { NetworkErrors } from '../net/networkErrors.ts';
 import { EpgIndexBuilder } from '../search/searchIndex.ts';
 import { logCore } from '../util/emitter.ts';
 import { DAY, HOUR, nowMillis } from '../util/time.ts';
-import { XtreamClient } from '../xtream/client.ts';
+import { XtreamClient, XtreamException } from '../xtream/client.ts';
 import { XtreamUrls } from '../xtream/urls.ts';
 import type { Ctx } from './context.ts';
 import { S, prefixRange } from './db.ts';
@@ -76,12 +77,15 @@ export class EpgRepository {
       touched = true;
     };
 
+    const guideUrl = url;
+    let receiving = false;
     try {
       const response = await this.ctx.http.get(url);
       if (!isSuccess(response.status)) {
         response.cancel();
-        throw new Error(`EPG HTTP ${response.status}`);
+        throw NetworkErrors.fromStatus(response.status, 'GUIDE');
       }
+      receiving = true;
       const parser = new XmltvParser((p) => {
         if (p.stop > from && p.start < to) {
           const c = wanted.get(p.channel) as string;
@@ -115,6 +119,12 @@ export class EpgRepository {
         epgMaxDurMs: imported ? Math.min(MAX_DURATION_CAP, maxDuration) : r.epgMaxDurMs,
       }));
       this.ctx.events.emit('sources');
+    } catch (e) {
+      if (e instanceof XtreamException) throw e;
+      // Network failures (also while reading the guide) get a precise message; anything else after
+      // the download started (e.g. storage, invalid gzip) keeps its own.
+      if (!receiving || NetworkErrors.isNetworkFailure(e)) throw NetworkErrors.fromThrowable(e, guideUrl, 'GUIDE');
+      throw e;
     } finally {
       // Listeners are notified exactly once, even if the import failed half way.
       if (touched) this.ctx.events.emit('epg');

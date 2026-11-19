@@ -10,7 +10,9 @@ import { decodeSettings, defaultPlayerSettings } from '../src/core/settings/play
 import { ChannelZapper } from '../src/core/zap/channelZapper.ts';
 import { withScheme, upgradeIfXtream, withSchemes } from '../src/core/data/sourceRepository.ts';
 import { sizedArtwork } from '../src/core/util/artworkUrl.ts';
-import { XtreamAuthErrors } from '../src/core/xtream/client.ts';
+import { XtreamAuthErrors, XtreamException } from '../src/core/xtream/client.ts';
+import { NetworkErrors } from '../src/core/net/networkErrors.ts';
+import { HttpError } from '../src/core/net/http.ts';
 import { utcMs } from './helpers.ts';
 
 describe('retry and stall', () => {
@@ -290,5 +292,80 @@ describe('XtreamAuthErrors (port of XtreamLoginErrorsTest.kt)', () => {
     for (const s of [500, 502, 503, 404, 429]) assert.ok(!XtreamAuthErrors.isRefused(s, '<html>Service unavailable</html>', true), `HTTP ${s}`);
     assert.ok(!XtreamAuthErrors.isRefused(400, '', false), 'a 400 on a list request is not about credentials');
     assert.ok(!XtreamAuthErrors.isEmptyLogin('{"user_info":{"auth":1}}'));
+  });
+});
+
+describe('NetworkErrors (port of NetworkErrors.kt)', () => {
+  test('HTTP statuses: same mapping and texts as fromStatus', () => {
+    const cases: [number, 'SERVER' | 'LIST' | 'GUIDE', string, string][] = [
+      [401, 'SERVER', 'INVALID_CREDENTIALS', 'Username o password non validi.'],
+      [403, 'LIST', 'INVALID_CREDENTIALS', "Accesso negato (errore 403): il link della lista non è più valido o l'abbonamento è scaduto."],
+      [401, 'GUIDE', 'INVALID_CREDENTIALS', "Accesso negato (errore 401): il link della guida TV non è più valido o l'abbonamento è scaduto."],
+      [404, 'SERVER', 'NOT_FOUND', "Il server risponde, ma l'indirizzo non è quello giusto (errore 404). Controlla indirizzo e porta."],
+      [410, 'LIST', 'NOT_FOUND', 'La lista non si trova più a questo indirizzo (errore 410): il link è sbagliato o scaduto.'],
+      [404, 'GUIDE', 'NOT_FOUND', 'La guida TV non si trova più a questo indirizzo (errore 404).'],
+      [429, 'LIST', 'TOO_MANY_REQUESTS', 'Il server della lista rifiuta le richieste perché sono troppe (errore 429). Aspetta qualche minuto e riprova.'],
+      [503, 'SERVER', 'SERVER', "Il server del provider è temporaneamente fuori servizio (errore 503). Non dipende dall'app né dalla tua rete: riprova più tardi."],
+      [502, 'GUIDE', 'SERVER', "Il server della guida TV è temporaneamente fuori servizio (errore 502). Non dipende dall'app né dalla tua rete: riprova più tardi."],
+      [500, 'LIST', 'SERVER', "Il server della lista ha un problema interno (errore 500). Non dipende dall'app né dalla tua rete: riprova più tardi."],
+      [302, 'SERVER', 'SERVER', 'Il server del provider ha risposto con un errore inatteso (codice 302). Riprova più tardi.'],
+      [418, 'GUIDE', 'SERVER', 'Il server della guida TV ha risposto con un errore inatteso (codice 418). Riprova più tardi.'],
+    ];
+    for (const [code, target, kind, message] of cases) {
+      const e = NetworkErrors.fromStatus(code, target);
+      assert.ok(e instanceof XtreamException);
+      assert.equal(e.kind, kind, `${code} ${target}`);
+      assert.equal(e.message, message, `${code} ${target}`);
+      assert.equal(e.httpStatus, code);
+      assert.equal(e.isConnectivity, false);
+    }
+  });
+
+  test('failed requests: offline, our timeouts, drops, anything else is unreachable', () => {
+    const saved = NetworkErrors.status;
+    try {
+      NetworkErrors.status = () => 'OFFLINE';
+      const offline = NetworkErrors.fromThrowable(new TypeError('Failed to fetch'), 'http://srv.example:8080', 'SERVER');
+      assert.equal(offline.kind, 'NO_INTERNET');
+      assert.equal(offline.message, 'Il dispositivo non è connesso a Internet. Controlla il Wi-Fi o la rete dati e riprova.');
+      assert.equal(NetworkErrors.fromThrowable(new HttpError('x', 'timeout'), 'http://a.b', 'GUIDE').kind, 'NO_INTERNET', 'offline wins');
+
+      NetworkErrors.status = () => 'UNKNOWN';
+      const timeout = NetworkErrors.fromThrowable(new HttpError('Il server non risponde (tempo scaduto)', 'timeout'), 'http://srv.example', 'SERVER');
+      assert.equal(timeout.kind, 'TIMEOUT');
+      assert.equal(timeout.message, 'Il server del provider non risponde (tempo scaduto): potrebbe essere sovraccarico o offline. Riprova tra qualche minuto.');
+      const dropped = NetworkErrors.fromThrowable(new HttpError('x', 'interrupted'), 'http://liste.example/l.m3u', 'LIST');
+      assert.equal(dropped.kind, 'NETWORK');
+      assert.equal(dropped.message, 'La connessione con il server della lista si è interrotta. Riprova.');
+      for (const cause of [new HttpError('Connessione al server non riuscita'), new TypeError('Failed to fetch'), new Error('boh')]) {
+        const e = NetworkErrors.fromThrowable(cause, 'https://user:pw@epg.example:8443/guide.xml?password=pw', 'GUIDE');
+        assert.equal(e.kind, 'UNREACHABLE');
+        assert.ok(e.isConnectivity);
+        assert.equal(e.message,
+          "Impossibile contattare il server della guida TV («epg.example:8443»): l'indirizzo potrebbe essere sbagliato, il server spento o la connessione assente.");
+      }
+      const already = new XtreamException('Username o password non validi.', 'INVALID_CREDENTIALS');
+      assert.equal(NetworkErrors.fromThrowable(already, 'http://a.b', 'SERVER'), already);
+    } finally {
+      NetworkErrors.status = saved;
+    }
+  });
+
+  test('which errors are connection failures', () => {
+    assert.ok(NetworkErrors.isNetworkFailure(new HttpError('x', 'timeout')));
+    assert.ok(NetworkErrors.isNetworkFailure(new TypeError('Failed to fetch')));
+    assert.ok(!NetworkErrors.isNetworkFailure(new Error('QuotaExceededError')));
+    assert.ok(!NetworkErrors.isNetworkFailure(new TypeError('x is not a function')));
+  });
+
+  test('hostOf: host, plus the port only when it is not the default one', () => {
+    assert.equal(NetworkErrors.hostOf('http://srv.example:8080/player_api.php?username=u&password=p'), 'srv.example:8080');
+    assert.equal(NetworkErrors.hostOf('http://srv.example:80/x'), 'srv.example');
+    assert.equal(NetworkErrors.hostOf('https://srv.example:443'), 'srv.example');
+    assert.equal(NetworkErrors.hostOf('https://srv.example:80/l.m3u'), 'srv.example:80');
+    assert.equal(NetworkErrors.hostOf('http://user:secret@srv.example/l.m3u'), 'srv.example');
+    assert.equal(NetworkErrors.hostOf('http://[::1]:8080/x'), '[::1]:8080');
+    assert.equal(NetworkErrors.hostOf('srv.example/l.m3u?x=1'), 'srv.example');
+    assert.equal(NetworkErrors.hostOf('u:p@srv.example:8080'), 'srv.example:8080');
   });
 });

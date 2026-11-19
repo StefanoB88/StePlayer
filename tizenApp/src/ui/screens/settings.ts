@@ -9,6 +9,7 @@ import { Format } from '../format.ts';
 import { session } from '../session.ts';
 import { addSourceScreen, DISCLAIMER, errorMessage, syncScreen, welcomeScreen } from './onboarding.ts';
 import { openShell } from '../shell.ts';
+import { syncDialog } from './syncDialog.ts';
 
 const VERSION = '1.0.0';
 export const PREFERRED_LANGUAGES: [string | null, string][] = [
@@ -181,9 +182,10 @@ export function settingsScreen(): Screen {
 
   async function syncNow(id: number) {
     if (syncing) return;
-    syncing = true; render();
-    try { await core.sync.sync(id); app().toast('Sincronizzazione completata'); } catch (e) { app().toast(errorMessage(e)); }
-    syncing = false; render();
+    // Blocking popup with step and progress (the row behind is not re-rendered meanwhile: it keeps the focus).
+    syncing = true;
+    try { await syncDialog(id, 'Sincronizzazione completata'); } finally { syncing = false; }
+    render();
   }
 
   async function refreshEpg(s: Source) {

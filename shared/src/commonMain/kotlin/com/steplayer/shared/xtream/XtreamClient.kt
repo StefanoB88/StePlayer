@@ -1,6 +1,7 @@
 package com.steplayer.shared.xtream
 
 import com.steplayer.shared.model.AccountInfo
+import com.steplayer.shared.net.NetworkErrors
 import com.steplayer.shared.model.EpgProgram
 import com.steplayer.shared.util.CivilTime
 import io.ktor.client.HttpClient
@@ -29,10 +30,37 @@ class XtreamException(
     message: String,
     val kind: Kind,
     cause: Throwable? = null,
-    /** HTTP status of the failed response, when there was one (shown to help diagnose [Kind.SERVER]). */
+    /** HTTP status of the failed response, when there was one. */
     val httpStatus: Int? = null,
 ) : Exception(message, cause) {
-    enum class Kind { INVALID_CREDENTIALS, ACCOUNT_EXPIRED, NETWORK, SERVER, PARSE }
+    /**
+     * Also used for M3U lists and TV guides. The [message] is always the full, user-presentable
+     * explanation (see [com.steplayer.shared.net.NetworkErrors]).
+     */
+    enum class Kind(val isConnectivity: Boolean = false) {
+        INVALID_CREDENTIALS,
+        ACCOUNT_EXPIRED,
+        /** Device offline, or connected to a network without Internet. */
+        NO_INTERNET(true),
+        /** The address doesn't exist (DNS). */
+        HOST_NOT_FOUND(true),
+        /** Server down, port closed or unreachable. */
+        UNREACHABLE(true),
+        /** No answer in time. */
+        TIMEOUT(true),
+        /** HTTPS certificate problem, or plain http blocked by the system. */
+        SECURE_CONNECTION(true),
+        /** Other network failure (e.g. connection dropped midway). */
+        NETWORK(true),
+        /** 404/410: wrong address/path or expired link. */
+        NOT_FOUND,
+        /** 429. */
+        TOO_MANY_REQUESTS,
+        /** 5xx or another unexpected status. */
+        SERVER,
+        /** Answer that isn't what an Xtream server / M3U list sends. */
+        PARSE,
+    }
 }
 
 /**
@@ -60,7 +88,7 @@ internal object XtreamAuthErrors {
     /** True if a 2xx login body is the "nothing for you" answer some panels give to wrong credentials. */
     fun isEmptyLogin(body: String): Boolean = body.trim().let { it.isEmpty() || it == "[]" || it == "{}" || it == "null" || it == "0" }
 
-    fun refused() = XtreamException("Credenziali non valide", XtreamException.Kind.INVALID_CREDENTIALS)
+    fun refused() = XtreamException("Username o password non validi.", XtreamException.Kind.INVALID_CREDENTIALS)
 }
 
 internal val XtreamJson = Json {
@@ -107,7 +135,7 @@ internal class XtreamClient(
             val status = response.status.value
             if (!response.status.isSuccess()) {
                 if (XtreamAuthErrors.isRefused(status, errorBody(response), login = action == null)) throw XtreamAuthErrors.refused()
-                throw XtreamException("Errore del server ($status)", XtreamException.Kind.SERVER, httpStatus = status)
+                throw NetworkErrors.fromStatus(status, NetworkErrors.Target.SERVER)
             }
             block(response)
         }
@@ -116,8 +144,14 @@ internal class XtreamClient(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Throwable) {
-        throw XtreamException("Impossibile contattare il server: ${e.message ?: e::class.simpleName}", XtreamException.Kind.NETWORK, e)
+        throw NetworkErrors.fromThrowable(e, creds.baseUrl, NetworkErrors.Target.SERVER)
     }
+
+    /** The login answer isn't JSON from an Xtream panel: typically a web page at the wrong address/port. */
+    private fun notXtream(e: Throwable) = XtreamException(
+        "Il server ha risposto, ma non come un server compatibile (API Xtream). Controlla indirizzo e porta.",
+        XtreamException.Kind.PARSE, e,
+    )
 
     /** The first few KB of an error response (enough for a message), never the whole body. */
     private suspend fun errorBody(response: HttpResponse): String = try {
@@ -142,7 +176,10 @@ internal class XtreamClient(
         return try {
             XtreamJson.decodeFromString(strategy, text)
         } catch (e: Exception) {
-            throw XtreamException("Risposta del server non valida", XtreamException.Kind.PARSE, e)
+            throw if (action == null) notXtream(e) else XtreamException(
+                "Il server ha inviato dati non validi ($action). Riprova più tardi; se succede sempre, contatta il provider.",
+                XtreamException.Kind.PARSE, e,
+            )
         }
     }
 
@@ -161,7 +198,7 @@ internal class XtreamClient(
                 out += try {
                     XtreamJson.decodeFromString(item, bytes.decodeToString(0, len))
                 } catch (e: Exception) {
-                    throw XtreamException("Risposta del server non valida ($action)", XtreamException.Kind.PARSE, e)
+                    throw XtreamException("Il server ha inviato dati non validi ($action). Riprova più tardi; se succede sempre, contatta il provider.", XtreamException.Kind.PARSE, e)
                 }
             }
             val buffer = ByteArray(64 * 1024)
@@ -173,7 +210,7 @@ internal class XtreamClient(
             try {
                 splitter.finish()
             } catch (e: IllegalStateException) {
-                throw XtreamException("Risposta del server non valida ($action)", XtreamException.Kind.PARSE, e)
+                throw XtreamException("Il server ha inviato dati non validi ($action). Riprova più tardi; se succede sempre, contatta il provider.", XtreamException.Kind.PARSE, e)
             }
             out
         }
@@ -185,7 +222,7 @@ internal class XtreamClient(
         if (user == null || user.auth == false) throw XtreamAuthErrors.refused()
         val status = user.status
         if (status != null && status.equals("Expired", ignoreCase = true)) {
-            throw XtreamException("L'abbonamento è scaduto", XtreamException.Kind.ACCOUNT_EXPIRED)
+            throw XtreamException("L'abbonamento risulta scaduto. Rinnovalo presso il provider.", XtreamException.Kind.ACCOUNT_EXPIRED)
         }
         val server = dto.serverInfo
         val offset = computeServerOffset(server?.timeNow, server?.timestampNow)

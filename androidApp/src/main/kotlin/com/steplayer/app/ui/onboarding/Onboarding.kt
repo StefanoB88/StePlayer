@@ -81,6 +81,7 @@ import com.steplayer.shared.model.SourceInput
 import com.steplayer.shared.model.SourceType
 import com.steplayer.shared.model.SyncState
 import com.steplayer.shared.model.SyncStep
+import com.steplayer.shared.net.NetworkErrors
 import com.steplayer.shared.xtream.XtreamException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -255,23 +256,15 @@ class AddSourceViewModel(private val app: StePlayerApp, private val editId: Long
     }
 }
 
+/**
+ * User-facing text for an error. Errors from the shared core (server, lists, TV guide) already
+ * carry the exact explanation: device offline, wrong address, server down, wrong credentials...
+ */
 fun errorMessage(context: Context, e: Throwable): String = when {
-    e is XtreamException && e.kind == XtreamException.Kind.SERVER && e.httpStatus != null ->
-        context.getString(R.string.error_server_code, e.httpStatus)
-    else -> errorMessageFor(context, e)
-}
-
-private fun errorMessageFor(context: Context, e: Throwable): String = when (e) {
-    is XtreamException -> context.getString(
-        when (e.kind) {
-            XtreamException.Kind.INVALID_CREDENTIALS -> R.string.error_invalid_credentials
-            XtreamException.Kind.ACCOUNT_EXPIRED -> R.string.error_account_expired
-            XtreamException.Kind.NETWORK -> R.string.error_network
-            XtreamException.Kind.SERVER -> R.string.error_server
-            XtreamException.Kind.PARSE -> R.string.error_parse
-        },
-    )
-    is java.io.IOException -> context.getString(R.string.error_network)
+    e is XtreamException -> e.message ?: context.getString(R.string.error_network)
+    // Raw network failure from elsewhere (player, downloads): same precise wording, address unknown.
+    NetworkErrors.causeOf(e) != null || e is java.io.IOException ->
+        NetworkErrors.fromThrowable(e, url = "", NetworkErrors.Target.SERVER).message ?: context.getString(R.string.error_network)
     else -> context.getString(R.string.error_generic, e.message ?: e::class.java.simpleName)
 }
 

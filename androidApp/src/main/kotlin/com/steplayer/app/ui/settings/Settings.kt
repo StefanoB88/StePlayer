@@ -96,11 +96,6 @@ class SettingsViewModel(val app: StePlayerApp) : ViewModel() {
 
     fun setActive(id: Long) = viewModelScope.launch { core.sources.setActive(id) }
 
-    fun syncNow(id: Long, onResult: (Throwable?) -> Unit) = app.appScope.launch {
-        val r = runCatching { core.sync.sync(id) }.exceptionOrNull()
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onResult(r) }
-    }
-
     fun refreshEpg(source: Source, onResult: (Throwable?) -> Unit) = app.appScope.launch {
         val r = runCatching { core.epg.refresh(source) }.exceptionOrNull()
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onResult(r) }
@@ -169,11 +164,7 @@ fun SettingsScreen(actions: AppActions) {
                                 subtitle = if (running) stringResource(R.string.syncing)
                                 else stringResource(R.string.settings_last_sync, active.lastSyncAt?.let { Format.dayTime(it) } ?: stringResource(R.string.settings_never)),
                                 busy = running,
-                                onClick = {
-                                    if (!running) vm.syncNow(active.id) { e ->
-                                        context.toast(if (e == null) context.getString(R.string.sync_done) else errorMessage(context, e))
-                                    }
-                                },
+                                onClick = { vm.app.userSync.start(active.id) },
                             )
                             SettingRow(
                                 Icons.Rounded.CalendarMonth, stringResource(R.string.settings_refresh_epg),

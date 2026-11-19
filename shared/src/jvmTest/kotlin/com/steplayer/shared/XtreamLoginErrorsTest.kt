@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 /** How the many panel flavours say "wrong username or password", and what must stay a server error. */
 class XtreamLoginErrorsTest {
@@ -52,10 +53,15 @@ class XtreamLoginErrorsTest {
     }
 
     @Test fun realServerProblemsStayServerErrorsWithTheirCode() {
-        for (status in listOf(500, 502, 503, 404, 429)) {
+        val expected = mapOf(
+            500 to XtreamException.Kind.SERVER, 502 to XtreamException.Kind.SERVER, 503 to XtreamException.Kind.SERVER,
+            404 to XtreamException.Kind.NOT_FOUND, 429 to XtreamException.Kind.TOO_MANY_REQUESTS,
+        )
+        for ((status, kind) in expected) {
             val e = loginError(status, "<html>Service unavailable</html>")
-            assertEquals(XtreamException.Kind.SERVER, e.kind, "HTTP $status")
+            assertEquals(kind, e.kind, "HTTP $status")
             assertEquals(status, e.httpStatus)
+            assertTrue(e.message!!.contains("$status"), "the message names the code: ${e.message}")
         }
     }
 

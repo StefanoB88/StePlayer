@@ -76,10 +76,7 @@ struct SettingsView: View {
                         : "Ultima sincronizzazione: \(active.lastSyncAt.map { Fmt.dayTime($0.int64Value) } ?? "mai")",
                        busy: app.isSyncing) {
                 guard !app.isSyncing else { return }
-                Task {
-                    await app.syncNow(active.id, blocking: false)
-                    app.showToast(app.syncError ?? "Sincronizzazione completata")
-                }
+                app.userSync(active.id) // blocking progress popup (RootView `SyncProgressOverlay`)
             }
             SettingRow(symbol: "calendar", title: "Aggiorna EPG",
                        subtitle: active.lastEpgSyncAt.map { "Ultima sincronizzazione: \(Fmt.dayTime($0.int64Value))" },

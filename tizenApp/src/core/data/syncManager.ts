@@ -5,13 +5,15 @@
 // inactive slot and the source flips to it in one final transaction: until then the UI keeps
 // reading the old catalog, and a failed sync leaves it untouched. Favorites, progress and hidden
 // categories are keyed by item id outside the slots, so they survive a resync.
-import type { ContentType, Source, SyncState } from '../api.ts';
+import type { ContentType, Source, SyncState, SyncStep } from '../api.ts';
 import { LineSplitter, readTextStream } from '../epg/byteStreams.ts';
 import type { M3uEntry } from '../m3u/m3uParser.ts';
 import {
   M3uClassifier, M3uParser, catchupDays, catchupMode, catchupSource, channelNumber, displayName, logoOf, tvgId, tvgName,
 } from '../m3u/m3uParser.ts';
+import type { HttpResponse } from '../net/http.ts';
 import { isSuccess } from '../net/http.ts';
+import { NetworkErrors } from '../net/networkErrors.ts';
 import { CatalogIndexBuilder } from '../search/searchIndex.ts';
 import { logCore, Mutex } from '../util/emitter.ts';
 import { extensionOf, extractYear, normalizeForSearch, stableHash } from '../util/text.ts';
@@ -79,7 +81,7 @@ export class SyncManager {
       try {
         if (source.type === 'XTREAM') await this.syncXtream(source);
         else await this.syncM3u(source);
-        this.setState({ kind: 'running', step: 'EPG', progress: 0.95 });
+        this.setState({ kind: 'running', step: 'EPG', progress: 0.92 });
         // EPG failures must never fail the catalog sync.
         try {
           await this.epg.refresh((await this.sources.byId(sourceId)) ?? source);
@@ -93,6 +95,27 @@ export class SyncManager {
         throw e;
       }
     });
+  }
+
+  /**
+   * Progress of one Xtream list step, from `from` to `to`, updated every 500 items. Lists are
+   * streamed, so their size isn't known up front: by bytes when the server sends Content-Length,
+   * otherwise creeping towards the end.
+   */
+  private listProgress(step: SyncStep, from: number, to: number): { items(n: number): void; read(bytes: number, total: number | null): void } {
+    let count = 0;
+    let bytes = 0;
+    let size: number | null = null;
+    return {
+      items: (n: number) => {
+        const before = Math.floor(count / 500);
+        count += n;
+        if (Math.floor(count / 500) === before) return;
+        const f = size != null ? Math.min(1, bytes / size) : 1 - 1 / (1 + count / 20_000);
+        this.setState({ kind: 'running', step, progress: from + (to - from) * f });
+      },
+      read: (b: number, total: number | null) => { bytes = b; size = total; },
+    };
   }
 
   // ------------------------------------------------------------------ slots
@@ -138,6 +161,7 @@ export class SyncManager {
       try { await this.clearSlot(source.id, g); } catch { /* best effort */ }
       throw e;
     }
+    this.setState({ kind: 'running', step: 'SAVING', progress: 0.88 });
     await this.commit(source.id, g, index);
   }
 
@@ -145,7 +169,7 @@ export class SyncManager {
 
   private async syncXtream(source: Source): Promise<void> {
     const creds = await this.sources.xtreamCredentials(source);
-    if (!creds) throw new XtreamException('Credenziali mancanti', 'INVALID_CREDENTIALS');
+    if (!creds) throw new XtreamException('Username e password mancanti: modifica la lista e inseriscili.', 'INVALID_CREDENTIALS');
     const client = new XtreamClient(this.ctx.http, creds);
 
     this.setState({ kind: 'running', step: 'AUTHENTICATING', progress: 0.02 });
@@ -179,7 +203,9 @@ export class SyncManager {
       this.setState({ kind: 'running', step: 'LIVE', progress: 0.1 });
       putCategories('LIVE', liveCats);
       let pos = 0;
+      let progress = this.listProgress('LIVE', 0.1, 0.35);
       await client.streamList('get_live_streams', liveStreamDto, async (items) => {
+        progress.items(items.length);
         for (const it of items) {
           const id = it.streamId;
           if (id == null) continue;
@@ -193,12 +219,14 @@ export class SyncManager {
           writer.add(S.channels, rec);
         }
         await writer.flushIfFull();
-      });
+      }, progress.read);
 
-      this.setState({ kind: 'running', step: 'MOVIES', progress: 0.4 });
+      this.setState({ kind: 'running', step: 'MOVIES', progress: 0.35 });
       putCategories('MOVIE', vodCats);
       pos = 0;
+      progress = this.listProgress('MOVIES', 0.35, 0.6);
       await client.streamList('get_vod_streams', vodStreamDto, async (items) => {
+        progress.items(items.length);
         for (const m of items) {
           const id = m.streamId;
           if (id == null) continue;
@@ -214,12 +242,14 @@ export class SyncManager {
           writer.add(S.movies, rec);
         }
         await writer.flushIfFull();
-      });
+      }, progress.read);
 
-      this.setState({ kind: 'running', step: 'SERIES', progress: 0.7 });
+      this.setState({ kind: 'running', step: 'SERIES', progress: 0.6 });
       putCategories('SERIES', seriesCats);
       pos = 0;
+      progress = this.listProgress('SERIES', 0.6, 0.85);
       await client.streamList('get_series', seriesDto, async (items) => {
+        progress.items(items.length);
         for (const it of items) {
           const id = it.seriesId;
           if (id == null) continue;
@@ -235,7 +265,7 @@ export class SyncManager {
           writer.add(S.series, rec);
         }
         await writer.flushIfFull();
-      });
+      }, progress.read);
       await writer.flush();
       return index;
     });
@@ -250,28 +280,57 @@ export class SyncManager {
     let epgUrls: string[] = [];
 
     await this.withNewSlot(source, async (g) => {
-      const response = await this.ctx.http.get(url);
-      if (!isSuccess(response.status)) {
-        response.cancel();
-        throw new Error(`La lista ha risposto con errore ${response.status}`);
-      }
-      this.setState({ kind: 'running', step: 'LIVE', progress: 0.1 });
-      const writer = new BatchWriter(this.ctx.db);
-      const sink = new M3uSink(source.id, g, writer);
-      const parser = new M3uParser((e) => sink.add(e));
-      const lines = new LineSplitter((line) => parser.feed(line));
+      let receiving = false;
       try {
-        await readTextStream(response, async (text) => {
-          lines.feed(text);
-          await writer.flushIfFull();
-        }, this.ctx.textOptions);
-      } finally {
-        response.cancel();
+        const response = await this.ctx.http.get(url);
+        if (!isSuccess(response.status)) {
+          response.cancel();
+          throw NetworkErrors.fromStatus(response.status, 'LIST');
+        }
+        receiving = true;
+        this.setState({ kind: 'running', step: 'LIVE', progress: 0.1 });
+        const total = response.contentLength != null && response.contentLength > 0 ? response.contentLength : null;
+        let read = 0;
+        let count = 0;
+        const counted: HttpResponse = {
+          status: response.status,
+          async read() {
+            const chunk = await response.read();
+            if (chunk != null) read += chunk.length;
+            return chunk;
+          },
+          cancel: () => response.cancel(),
+        };
+        const writer = new BatchWriter(this.ctx.db);
+        const sink = new M3uSink(source.id, g, writer);
+        const parser = new M3uParser((e) => sink.add(e));
+        const lines = new LineSplitter((line) => {
+          parser.feed(line);
+          if (++count % 2000 === 0) {
+            // Size known: real fraction; unknown: creeps towards the end.
+            const f = total != null ? Math.min(1, read / total) : 1 - 1 / (1 + count / 40_000);
+            this.setState({ kind: 'running', step: 'LIVE', progress: 0.1 + 0.75 * f });
+          }
+        });
+        try {
+          await readTextStream(counted, async (text) => {
+            lines.feed(text);
+            await writer.flushIfFull();
+          }, this.ctx.textOptions);
+        } finally {
+          response.cancel();
+        }
+        lines.finish();
+        await writer.flush();
+        epgUrls = parser.header.epgUrls;
+        return sink.index;
+      } catch (e) {
+        if (e instanceof XtreamException) throw e;
+        // Network failures (also while reading the list) get a precise message; anything else
+        // after the download started (e.g. storage) keeps its own.
+        if (!receiving || NetworkErrors.isNetworkFailure(e)) throw NetworkErrors.fromThrowable(e, url, 'LIST');
+        throw e;
       }
-      lines.finish();
-      await writer.flush();
-      epgUrls = parser.header.epgUrls;
-      return sink.index;
     });
 
     if (epgUrls.length > 0) {

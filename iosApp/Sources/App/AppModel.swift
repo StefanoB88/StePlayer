@@ -29,6 +29,12 @@ struct ConfirmDialog: Identifiable {
     let action: () -> Void
 }
 
+/// Blocking "Aggiornamento della lista" popup shown over the whole app (RootView) for user-initiated syncs.
+enum SyncPopup: Equatable {
+    case running
+    case failed(String)
+}
+
 /// App-wide state: owns the Kotlin core and the list lifecycle.
 @MainActor
 @Observable
@@ -67,6 +73,9 @@ final class AppModel {
     var tab: AppTab = .home
     var path: [Route] = []
     var confirm: ConfirmDialog?
+    /// Non-nil while the user-initiated sync popup is on screen (never for background/startup syncs).
+    var syncPopup: SyncPopup?
+    @ObservationIgnored private var syncPopupSourceId: Int64 = -1
 
     #if os(iOS)
     let downloadEngine: BackgroundDownloadEngine
@@ -300,6 +309,44 @@ final class AppModel {
             syncError = readableError(error)
         }
         isSyncing = false
+    }
+
+    /// "Aggiorna" / "Sincronizza ora": full sync behind the blocking progress popup.
+    /// Success closes it with the "Lista aggiornata" toast; failure keeps it open with Riprova / Chiudi.
+    func userSync(_ id: Int64) {
+        guard id >= 0, syncPopup == nil else { return }
+        syncPopupSourceId = id
+        runPopupSync()
+    }
+
+    /// "Riprova" in the failed popup: same list, same popup.
+    func retryPopupSync() {
+        guard case .failed = syncPopup else { return }
+        runPopupSync()
+    }
+
+    /// "Chiudi" in the failed popup.
+    func dismissSyncPopup() {
+        guard case .failed = syncPopup else { return }
+        syncPopup = nil
+    }
+
+    private func runPopupSync() {
+        let id = syncPopupSourceId
+        syncProgress = 0
+        syncStepText = ""
+        syncPopup = .running
+        Task {
+            // An automatic sync may already be running: the popup follows it, then runs the requested one.
+            while isSyncing { try? await Task.sleep(for: .milliseconds(200)) }
+            await syncNow(id, blocking: false)
+            if let error = syncError {
+                syncPopup = .failed(error)
+            } else {
+                syncPopup = nil
+                showToast("Lista aggiornata")
+            }
+        }
     }
 
     func refreshEpg() async throws {
