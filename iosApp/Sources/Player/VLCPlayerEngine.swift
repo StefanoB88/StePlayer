@@ -225,7 +225,7 @@ final class VLCPlayerEngine: NSObject, PlayerEngine {
                 } else {
                     stoppedTicks = 0
                 }
-                if d > 0, !player.isPlaying, self.currentTime >= d - 1.5, !self.endedReported {
+                if d > 0, !player.isPlaying, !self.scrubbing, self.currentTime >= d - 1.5, !self.endedReported {
                     self.endedReported = true
                     self.onEnded?()
                 }
@@ -251,12 +251,54 @@ final class VLCPlayerEngine: NSObject, PlayerEngine {
         player.time = VLCTime(int: target)
     }
 
+    // MARK: Scrubbing (preview while dragging)
+
+    private var scrubbing = false
+    private var scrubResume = false
+    private var scrubTarget: Int32?
+    private var scrubTask: Task<Void, Never>?
+
+    /// VLCKit 3 has no "seek done" signal (and keeps reporting `.buffering` / the old time while paused), so the
+    /// frames are requested at a steady pace: one seek, then a short pause while VLC fetches and draws it.
+    func scrub(to seconds: Double) {
+        guard let player, drawable != nil else { return }
+        if !scrubbing {
+            scrubbing = true
+            scrubResume = wantsToPlay
+            if wantsToPlay { player.pause() } // wantsToPlay is kept: endScrub restores it
+        }
+        scrubTarget = Int32(max(0, seconds) * 1000)
+        guard scrubTask == nil else { return }
+        scrubTask = Task { @MainActor [weak self] in
+            while let self, self.scrubbing, let player = self.player, let target = self.scrubTarget {
+                self.scrubTarget = nil
+                self.pendingSeek = (player.time.intValue, target)
+                player.time = VLCTime(int: target)
+                try? await Task.sleep(for: .milliseconds(350))
+            }
+            self?.scrubTask = nil
+        }
+    }
+
+    func endScrub() {
+        guard scrubbing else { return }
+        scrubbing = false
+        scrubTarget = nil
+        scrubTask?.cancel()
+        scrubTask = nil
+        if scrubResume, wantsToPlay { player?.play() }
+    }
+
     func stop() { _ = stopAndWait() }
 
     /// Detaches the current player at once (no more callbacks, UI free) and stops/releases it on a background
     /// queue. The returned task finishes when VLC has really closed the stream (the provider connection is gone).
     @discardableResult
     func stopAndWait() -> Task<Void, Never>? {
+        scrubbing = false
+        scrubTarget = nil
+        scrubTask?.cancel()
+        scrubTask = nil
         guard let old = player else { return nil }
         player = nil
         old.delegate = nil

@@ -39,6 +39,9 @@ thin() { # xcframework
     for arch in armv7 armv7s; do
       if lipo -archs "$bin" | tr ' ' '\n' | grep -qx "$arch"; then lipo -remove "$arch" "$bin" -output "$bin"; fi
     done
+    # Local symbols are only for VideoLAN's debugging: ~2 MB less in the app. Exported symbols stay, and Xcode
+    # signs the framework again when it embeds it. Idempotent.
+    strip -x "$bin" 2>/dev/null
   done
   /usr/bin/python3 - "$xcf/Info.plist" <<'PY'
 import plistlib, sys

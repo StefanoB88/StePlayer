@@ -342,8 +342,9 @@ private struct IOSPlayerContent: View {
             let value = scrub ?? vm.currentTime
             VStack(spacing: 2) {
                 SeekBar(value: min(value, total), total: total, enabled: canSeek,
-                        onScrub: { scrub = $0; poke() },
-                        onCommit: { vm.seek(to: $0); scrub = nil; poke() })
+                        // Preview: the video follows the finger, as on Android.
+                        onScrub: { scrub = $0; vm.scrub(to: $0); poke() },
+                        onCommit: { vm.endScrub(at: $0); scrub = nil; poke() })
                 HStack {
                     Text(Fmt.clock(value)).font(AppFont.labelLarge).foregroundStyle(.white).monospacedDigit()
                     Spacer()
@@ -351,6 +352,8 @@ private struct IOSPlayerContent: View {
                         .font(AppFont.labelLarge).foregroundStyle(.white.opacity(0.7)).monospacedDigit()
                 }
             }
+            // Controls closed mid-drag (a dialog, PiP...): never leave the player silenced in preview mode.
+            .onDisappear { if scrub != nil || vm.scrubbing { vm.endScrub(at: nil); scrub = nil } }
         }
     }
 

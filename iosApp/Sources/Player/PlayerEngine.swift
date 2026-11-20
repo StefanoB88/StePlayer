@@ -53,6 +53,12 @@ protocol PlayerEngine: AnyObject {
     func play()
     func pause()
     func seek(to seconds: Double)
+    /// The seek bar is being dragged: shows the frame at `seconds` (no sound), like Android's scrubbing mode.
+    /// Uses the stream's own connection and asks for the next frame only once the previous one is done (rapid
+    /// reconnections could trip the provider's connection limit). The first call silences playback.
+    func scrub(to seconds: Double)
+    /// Drag finished: stops previewing and restores play/pause as it was (the caller then seeks to the final spot).
+    func endScrub()
     /// Full teardown: stop, drop the item/media, cancel loading, remove observers. Idempotent. Never blocks.
     func stop()
     /// Like `stop()`; when the decoder closes asynchronously, returns a task that completes once the stream

@@ -26,6 +26,8 @@ kotlin {
             baseName = "Shared"
             isStatic = true
             binaryOption("bundleId", "com.steplayer.shared")
+            // Store builds: Kotlin/Native optimises for size (smaller app download, same behaviour).
+            if (buildType == org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.RELEASE) binaryOption("smallBinary", "true")
             xcf.add(this)
         }
     }

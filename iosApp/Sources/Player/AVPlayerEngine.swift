@@ -253,7 +253,54 @@ final class AVPlayerEngine: NSObject, PlayerEngine {
                     toleranceAfter: CMTime(seconds: 0.5, preferredTimescale: 600))
     }
 
+    // MARK: Scrubbing (preview while dragging)
+
+    private var scrubbing = false
+    private var scrubResume = false
+    private var scrubSeeking = false
+    private var scrubTarget: Double?
+    /// Bumped on every start/end, so the completion of a seek from an older drag is ignored.
+    private var scrubGeneration = 0
+
+    func scrub(to seconds: Double) {
+        guard player.currentItem != nil else { return }
+        if !scrubbing {
+            scrubbing = true
+            scrubGeneration += 1
+            scrubResume = player.timeControlStatus != .paused
+            player.pause() // the paused layer still shows each frame the seeks land on
+        }
+        scrubTarget = max(0, seconds)
+        nextScrubFrame()
+    }
+
+    private func nextScrubFrame() {
+        guard scrubbing, !scrubSeeking, let target = scrubTarget else { return }
+        scrubTarget = nil
+        scrubSeeking = true
+        let generation = scrubGeneration
+        // Nearest key frame within ±0.2 % of the duration (1–15 s): far fewer bytes per frame than an exact seek.
+        let tolerance = CMTime(seconds: min(15, max(1, duration * 0.002)), preferredTimescale: 600)
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: tolerance, toleranceAfter: tolerance) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.scrubGeneration == generation else { return }
+                self.scrubSeeking = false
+                self.nextScrubFrame()
+            }
+        }
+    }
+
+    func endScrub() {
+        guard scrubbing else { return }
+        scrubbing = false
+        scrubGeneration += 1
+        scrubSeeking = false
+        scrubTarget = nil
+        if scrubResume { player.play() }
+    }
+
     func stop() {
+        if scrubbing { scrubbing = false; scrubGeneration += 1; scrubSeeking = false; scrubTarget = nil }
         checksTask?.cancel()
         checksTask = nil
         player.pause()

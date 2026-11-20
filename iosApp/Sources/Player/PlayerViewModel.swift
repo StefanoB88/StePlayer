@@ -324,6 +324,7 @@ final class PlayerViewModel {
     /// Mirrors the engine's playing/buffering state (1 s tick, and immediately on engine state changes).
     private func syncEngineState() {
         guard let engine, !isClosed else { return }
+        if scrubbing { setBuffering(false); return } // engine silenced on purpose: keep the play/pause button as it was
         let playing = engine.isPlaying
         if isPlaying != playing { isPlaying = playing }
         setBuffering(isStarting || (isStreaming && engine.isBuffering))
@@ -607,6 +608,27 @@ final class PlayerViewModel {
 
     func seek(by delta: Double) { seek(to: currentTime + delta) }
 
+    /// Seek bar being dragged: the video follows the finger. Play/pause, the stall watchdog and the spinner
+    /// ignore the silenced engine until `endScrub`.
+    private(set) var scrubbing = false
+
+    func scrub(to seconds: Double) {
+        guard !isLive, duration > 0, failure == nil else { return }
+        interaction()
+        scrubbing = true
+        engine?.scrub(to: min(max(0, seconds), duration - 1))
+    }
+
+    /// Finger lifted: exact seek to `seconds` (nil = leave it where the preview is) and normal playback again.
+    func endScrub(at seconds: Double?) {
+        if scrubbing {
+            engine?.endScrub()
+            scrubbing = false
+            watchdog.reset()
+        }
+        if let seconds { seek(to: seconds) }
+    }
+
     func seek(to seconds: Double) {
         interaction()
         let target = duration > 0 ? min(max(0, seconds), duration - 1) : max(0, seconds)
@@ -760,7 +782,7 @@ final class PlayerViewModel {
         if duration != d { duration = d }
 
         if streaming {
-            let wantsToPlay = !userPaused && !systemPaused
+            let wantsToPlay = !userPaused && !systemPaused && !scrubbing
             if watchdog.tick(nowMs: .nowMs, positionMs: Int64(currentTime * 1000), wantsToPlay: wantsToPlay) {
                 handleStall()
                 return
@@ -918,6 +940,7 @@ final class PlayerViewModel {
     // MARK: Buffer advisor
 
     private func handleBufferStall() {
+        if scrubbing { return } // waiting for preview frames is not a stall
         let advisor = advisorFor(settings?.bufferMode ?? .large)
         if advisor.onStall(nowMs: .nowMs) {
             // Applied on the next start/retry.
