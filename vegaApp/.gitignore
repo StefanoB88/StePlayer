@@ -1,0 +1,14 @@
+*.iml
+*.swp
+.idea
+.DS_Store
+.vscode
+.tmp
+
+dist
+build
+node_modules
+CMakeUserPresets.json
+npm-debug.log
+# Amazon hls.js for Vega (proprietary wrapper + patched build): recreated by scripts/fetch_hlsjs.sh
+src/vendor/

@@ -1,5 +1,5 @@
 // Renders every StePlayer icon and brand image from scripts/brand/brand.mjs with headless Chrome:
-//   node scripts/brand/make-brand.mjs [ios] [android] [tizen] [webos] [web] [play] [appstore]     (no argument = all)
+//   node scripts/brand/make-brand.mjs [ios] [android] [tizen] [webos] [web] [play] [appstore] [amazon]     (no argument = all)
 // Outputs:
 //   ios      iosApp/Resources/iOS AppIcon 1024, tvOS App Icon layers (400×240 @1x/@2x, 1280×768) and Top Shelf images
 //   android  androidApp/src/main/res/drawable-xhdpi/tv_banner.png (Android TV banner, 320×180 dp)
@@ -7,6 +7,7 @@
 //   webos    tizenApp/webos: LG launcher icons icon.png (80×80) and largeIcon.png (130×130), splash.png (1920×1080)
 //   web      ~/steplayerwebsite/assets/icon.png (192) and favicon.png (64) — override with WEBSITE_DIR
 //   play     store/google-play/icon-512.png, feature-graphic-1024x500.png and tv-banner-1280x720.png
+//   amazon   store/amazon: icons 114×114 and 512×512, Fire TV app icon 1280×720, Fire TV background 1920×1080, promo image 1024×500
 //   appstore store/app-store/artwork: product page header (5244×2950, 3840×1646) and search results image (3840×2560)
 // The Android launcher icon is vector (res/drawable/ic_launcher_*.xml) and is not rendered here.
 import { createRequire } from 'node:module';
@@ -82,6 +83,24 @@ if (all || want.has('play')) {
   // Android TV banner for the Play listing (the in-app banner is res/drawable-xhdpi/tv_banner.png).
   await png(join(P, 'tv-banner-1280x720.png'), 1280, 720, full(1280, 720, lockup(720, { markScale: 0.4, textScale: 0.19 })));
   await png(join(P, 'feature-graphic-1024x500.png'), 1024, 500, full(1024, 500, `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:22px">
+      ${lockup(170, { markScale: 0.9, textScale: 0.5, gap: 0.14 }).replace('width:100%;height:100%', 'height:170px')}
+      <div style="font:500 30px/1.2 ${FONT};color:${COLORS.gold};letter-spacing:.01em">Il lettore per le tue liste M3U</div>
+    </div>`));
+}
+
+if (all || want.has('amazon')) {
+  const Z = join(root, 'store/amazon');
+  await png(join(Z, 'icon-114x114.png'), 114, 114, iconSvg(114, { rounded: true }), true);
+  await png(join(Z, 'icon-512x512.png'), 512, 512, iconSvg(512, { rounded: true }), true);
+  // Fire TV app icon (launcher tile): 1280×720, no transparency, logo and name centred.
+  await png(join(Z, 'firetv-icon-1280x720.png'), 1280, 720, full(1280, 720, lockup(720, { markScale: 0.4, textScale: 0.19 })));
+  // Fire TV background: shown behind the app details; the left part is covered by Amazon's text.
+  await png(join(Z, 'firetv-background-1920x1080.png'), 1920, 1080, full(1920, 1080, `
+    <div style="display:flex;justify-content:flex-end;align-items:center;height:100%;padding-right:160px">
+      ${lockup(420, { markScale: 0.9, textScale: 0.42, gap: 0.12 }).replace('width:100%;height:100%', 'height:420px')}
+    </div>`));
+  await png(join(Z, 'promo-1024x500.png'), 1024, 500, full(1024, 500, `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:22px">
       ${lockup(170, { markScale: 0.9, textScale: 0.5, gap: 0.14 }).replace('width:100%;height:100%', 'height:170px')}
       <div style="font:500 30px/1.2 ${FONT};color:${COLORS.gold};letter-spacing:.01em">Il lettore per le tue liste M3U</div>
