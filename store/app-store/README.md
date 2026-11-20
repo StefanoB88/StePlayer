@@ -2,11 +2,14 @@
 
 Captured from the Xcode simulators with the app's DEBUG demo hooks and the fictional dev catalogue (invented names,
 generated artwork), status bar at 9:41. JPEG, flattened, no transparency. Regenerate with
-`scripts/store/shots-apple.sh <simulator> <out-dir> <prefix> [ios|tvos]`.
+`scripts/store/shots-apple.sh <simulator> <out-dir> <prefix> [ios|tvos]`, with the dev server started as
+`PNG_ART=1 node dev/server.mjs 8080` (iOS does not draw SVG artwork). No Apple Watch screenshots: there is no watchOS app.
 
 | App Store Connect (version page → Previews and Screenshots) | Files | Size |
 | --- | --- | --- |
 | iPhone 6.9" display (required; also used for smaller iPhones) | `iphone-6.9/iphone-1…5.jpg` | 1320×2868 |
+| iPhone with Dynamic Island, medium display (iPhone 18 Pro simulator) | `iphone-6.3/iphone-1…5.jpg` | 1206×2622 |
+| iPhone Duo (simulator, `SHOT_DISPLAY=1`: the screen the app runs on) | `iphone-duo/duo-1…5.jpg` | 1398×2034 |
 | iPad 13" display (required: the app runs on iPad) | `ipad-13/ipad-1…5.jpg` | 2064×2752 |
 | Apple TV (tvOS platform of the same app record) | `apple-tv/tv-1…4.jpg` | 1920×1080 |
 

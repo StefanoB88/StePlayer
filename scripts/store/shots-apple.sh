@@ -1,8 +1,10 @@
 #!/bin/sh
 # App Store screenshots from the iOS / tvOS simulators, using the DEBUG-only demo hooks of AppModel
 # (STEPLAYER_DEMO_M3U loads the list, STEPLAYER_DEMO_TAB / STEPLAYER_DEMO_OPEN pick the screen).
-# Needs the fictional dev catalogue:  cd tizenApp && node dev/server.mjs 8080
+# Needs the fictional dev catalogue with PNG artwork (iOS does not draw SVG):  cd tizenApp && PNG_ART=1 node dev/server.mjs 8080
 # Usage: scripts/store/shots-apple.sh <simulator-udid> <out-dir> <prefix> [ios|tvos]
+# WAIT_SCALE=3 multiplies every wait (slow or busy Mac, first boot of a new simulator).
+# SHOT_DISPLAY=1 picks the screen on devices with two displays (iPhone Duo: `simctl io <udid> screenshot` lists them).
 set -e
 DEV="$1"; OUT="$2"; PREFIX="$3"; KIND="${4:-ios}"
 cd "$(dirname "$0")/../.."
@@ -23,8 +25,8 @@ shot() { # name, wait seconds, then env assignments
   NAME="$1"; WAIT="$2"; shift 2
   xcrun simctl terminate "$DEV" "$BID" 2>/dev/null || true
   env SIMCTL_CHILD_STEPLAYER_DEMO_M3U=http://127.0.0.1:8080/dev/list.m3u "$@" xcrun simctl launch "$DEV" "$BID" >/dev/null
-  sleep "$WAIT"
-  xcrun simctl io "$DEV" screenshot --type=png "$OUT/$PREFIX-$NAME.png" >/dev/null 2>&1
+  sleep $(( WAIT * ${WAIT_SCALE:-1} ))
+  xcrun simctl io "$DEV" screenshot --type=png ${SHOT_DISPLAY:+--display=$SHOT_DISPLAY} "$OUT/$PREFIX-$NAME.png" >/dev/null 2>&1
   echo "$OUT/$PREFIX-$NAME.png"
 }
 shot sync 25 SIMCTL_CHILD_STEPLAYER_DEMO_TAB=home   # first launch: downloads the list (not kept)

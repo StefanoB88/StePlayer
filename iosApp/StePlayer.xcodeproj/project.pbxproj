@@ -36,8 +36,8 @@
 		4AAD71FC82BB9F2DC0D6F0B6 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 273554AACD4CDE4E37676A54 /* PairingView.swift */; };
 		4B5DBE9C00E8922157E62C40 /* AVPlayerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B8EBD83C4B89306B00FEE84 /* AVPlayerEngine.swift */; };
 		5358AEF6E7490388CBDD94F8 /* KeyboardDismiss.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A4BD5ED0F8E95792A5BB01A /* KeyboardDismiss.swift */; };
-		576ED3EEDA86B8A1BBAD82A1 /* BackgroundDownloadEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABEE372B7F10FB992EC7631 /* BackgroundDownloadEngine.swift */; };
 		56540A1B41AA2E714A9753E5 /* ConnectionRefresher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F482AF3E25AAFFD224C06EA1 /* ConnectionRefresher.swift */; };
+		576ED3EEDA86B8A1BBAD82A1 /* BackgroundDownloadEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABEE372B7F10FB992EC7631 /* BackgroundDownloadEngine.swift */; };
 		577B8C282E3F4C845597F813 /* StePlayerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EC87218CB0FDBCDBE0A6F2 /* StePlayerApp.swift */; };
 		581A710DCDA04902B2D4D5F6 /* GuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2877A79A40587F4BFEA2CFA0 /* GuideView.swift */; };
 		58948C56CB1E9511000FD44F /* PlaybackErrorText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 325C52B834D07699939DBC97 /* PlaybackErrorText.swift */; };
@@ -123,7 +123,6 @@
 		00EC87218CB0FDBCDBE0A6F2 /* StePlayerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StePlayerApp.swift; sourceTree = "<group>"; };
 		09CF61EC66DDB9580F73EA0D /* SeriesDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeriesDetailView.swift; sourceTree = "<group>"; };
 		0ABEE372B7F10FB992EC7631 /* BackgroundDownloadEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundDownloadEngine.swift; sourceTree = "<group>"; };
-		F482AF3E25AAFFD224C06EA1 /* ConnectionRefresher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionRefresher.swift; sourceTree = "<group>"; };
 		0AEB6A75D454A2283E5C029A /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
 		134EE736F7AD34B4208EAAC9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		136C99FC210E80866C9E8612 /* PlayerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerScreen.swift; sourceTree = "<group>"; };
@@ -144,7 +143,7 @@
 		7963ACA73D59C9AB27A1CE02 /* DownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsView.swift; sourceTree = "<group>"; };
 		7C3EDFFDE8C6617AB11190B9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		8BDCA4F200C40BF9557D7881 /* PlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViewModel.swift; sourceTree = "<group>"; };
-		93C19EC9EFC71CCB72847442 /* StePlayerTV.app */ = {isa = PBXFileReference; includeInIndex = 0; name = StePlayerTV.app; path = StePlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		93C19EC9EFC71CCB72847442 /* StePlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StePlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		97F0BAEC2C0D575C8E8F8A00 /* DownloadSpeedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadSpeedStore.swift; sourceTree = "<group>"; };
 		999B0EC90EA27C38C179D5B3 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		9F574B56A52EC45A8D19B994 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -165,6 +164,7 @@
 		E5017731E0D0C1F7AB18ED9E /* MovieDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailView.swift; sourceTree = "<group>"; };
 		ECBBD10A77344A7E03F54930 /* CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogView.swift; sourceTree = "<group>"; };
 		F2BEE0B7004BBEC878A10927 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		F482AF3E25AAFFD224C06EA1 /* ConnectionRefresher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionRefresher.swift; sourceTree = "<group>"; };
 		F70A32983EADE41672914DF0 /* LiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveView.swift; sourceTree = "<group>"; };
 		F7781C16CC3C6D3224B8A57A /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		FA9FAE23847DC9A80DB94A51 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -363,7 +363,7 @@
 			isa = PBXGroup;
 			children = (
 				24006B1CDC3DACD62E46E692 /* StePlayer.app */,
-				93C19EC9EFC71CCB72847442 /* StePlayerTV.app */,
+				93C19EC9EFC71CCB72847442 /* StePlayer.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -431,7 +431,7 @@
 			packageProductDependencies = (
 			);
 			productName = StePlayerTV;
-			productReference = 93C19EC9EFC71CCB72847442 /* StePlayerTV.app */;
+			productReference = 93C19EC9EFC71CCB72847442 /* StePlayer.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -447,7 +447,6 @@
 						ProvisioningStyle = Automatic;
 					};
 					680B0FE5FBB687DF99ED1023 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -664,7 +663,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -716,7 +715,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = A74N46H9NQ;
+				DEVELOPMENT_TEAM = T2H6F3HDY6;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Frameworks\"",
@@ -739,7 +738,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = A74N46H9NQ;
+				DEVELOPMENT_TEAM = T2H6F3HDY6;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Frameworks\"",
@@ -793,7 +792,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -836,9 +835,11 @@
 		B1592775AFF16CB62C58BF2C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
-				DEVELOPMENT_TEAM = A74N46H9NQ;
+				DEVELOPMENT_TEAM = T2H6F3HDY6;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Frameworks\"",
@@ -850,6 +851,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.steplayer.app;
+				PROVISIONING_PROFILE_SPECIFIER = "StePlayer tvOS AppStore";
 				PRODUCT_NAME = StePlayer;
 				SDKROOT = appletvos;
 				TARGETED_DEVICE_FAMILY = 3;
@@ -861,7 +863,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
-				DEVELOPMENT_TEAM = A74N46H9NQ;
+				DEVELOPMENT_TEAM = T2H6F3HDY6;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Frameworks\"",
