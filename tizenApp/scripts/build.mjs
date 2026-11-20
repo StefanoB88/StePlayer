@@ -1,13 +1,17 @@
-// Builds the Tizen web app into build/: bundles src/main.ts for the oldest supported TV engine
-// (Chromium 56 = Tizen 4.0, 2018 models), generates the icon module and copies the static files.
-// Usage: node scripts/build.mjs [--watch] [--dev]
+// Builds the TV web app: bundles src/main.ts for the oldest supported TV engine, generates the icon module and
+// copies the static files.
+//   Samsung (default): build/        Chromium 56 = Tizen 4.0 (2018 models), static/ (config.xml, index.html, icon)
+//   LG (--webos):      build-webos/  Chromium 53 = webOS 4.0 (2018 models), static/styles.css + webos/ (appinfo.json,
+//                                    index.html, icons, splash)
+// Usage: node scripts/build.mjs [--webos] [--watch] [--dev]
 import { build, context } from 'esbuild';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const out = join(root, 'build');
+const webos = process.argv.includes('--webos');
+const out = join(root, webos ? 'build-webos' : 'build');
 const watch = process.argv.includes('--watch');
 const dev = process.argv.includes('--dev') || watch;
 
@@ -36,7 +40,10 @@ function generateIcons() {
 
 function copyStatic() {
   mkdirSync(out, { recursive: true });
-  cpSync(join(root, 'static'), out, { recursive: true });
+  if (!webos) { cpSync(join(root, 'static'), out, { recursive: true }); return; }
+  // webOS: same styles; its own manifest, page (no Samsung webapis.js) and images.
+  cpSync(join(root, 'static/styles.css'), join(out, 'styles.css'));
+  cpSync(join(root, 'webos'), out, { recursive: true });
 }
 
 generateIcons();
@@ -48,7 +55,7 @@ const options = {
   bundle: true,
   outfile: join(out, 'app.js'),
   format: 'iife',
-  target: ['chrome56'],
+  target: [webos ? 'chrome53' : 'chrome56'],
   minify: !dev,
   sourcemap: dev ? 'inline' : false,
   legalComments: 'none',

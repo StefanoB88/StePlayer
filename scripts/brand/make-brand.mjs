@@ -1,9 +1,10 @@
 // Renders every StePlayer icon and brand image from scripts/brand/brand.mjs with headless Chrome:
-//   node scripts/brand/make-brand.mjs [ios] [android] [tizen] [web] [play] [appstore]     (no argument = all)
+//   node scripts/brand/make-brand.mjs [ios] [android] [tizen] [webos] [web] [play] [appstore]     (no argument = all)
 // Outputs:
 //   ios      iosApp/Resources/iOS AppIcon 1024, tvOS App Icon layers (400×240 @1x/@2x, 1280×768) and Top Shelf images
 //   android  androidApp/src/main/res/drawable-xhdpi/tv_banner.png (Android TV banner, 320×180 dp)
 //   tizen    tizenApp/static/icon.png (512×512)
+//   webos    tizenApp/webos: LG launcher icons icon.png (80×80) and largeIcon.png (130×130), splash.png (1920×1080)
 //   web      ~/steplayerwebsite/assets/icon.png (192) and favicon.png (64) — override with WEBSITE_DIR
 //   play     store/google-play/icon-512.png, feature-graphic-1024x500.png and tv-banner-1280x720.png
 //   appstore store/app-store/artwork: product page header (5244×2950, 3840×1646) and search results image (3840×2560)
@@ -60,6 +61,13 @@ if (all || want.has('android')) {
 
 if (all || want.has('tizen')) {
   await png(join(root, 'tizenApp/static/icon.png'), 512, 512, iconSvg(512, { rounded: true }), true);
+}
+
+if (all || want.has('webos')) {
+  const L = join(root, 'tizenApp/webos');
+  await png(join(L, 'icon.png'), 80, 80, iconSvg(80, { rounded: true }), true);
+  await png(join(L, 'largeIcon.png'), 130, 130, iconSvg(130, { rounded: true }), true);
+  await png(join(L, 'splash.png'), 1920, 1080, full(1920, 1080, lockup(1080, { markScale: 0.22, textScale: 0.1 })));
 }
 
 if (all || want.has('web')) {

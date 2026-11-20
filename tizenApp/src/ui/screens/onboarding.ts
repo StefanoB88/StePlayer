@@ -7,6 +7,7 @@ import { brandMark, primaryButton, secondaryButton, progressBar, setProgress } f
 import { textField } from '../input.ts';
 import { prefs } from '../prefs.ts';
 import { phonePanel, type PhonePanel } from './phonePair.ts';
+import { exitApp, isWebOS } from '../platform.ts';
 
 export const DISCLAIMER = 'StePlayer è solo un lettore: non fornisce né vende contenuti. Usa solo liste che hai il diritto di guardare.';
 /** First-launch legal gate (same 3 points as Android and iOS). */
@@ -51,7 +52,11 @@ export function welcomeScreen(onContinue: () => void): Screen {
     prefs.set('disclaimerAccepted', '1');
     onContinue();
   }, undefined, { disabled: !confirmed });
-  proceed.style.width = '100%';
+  // Store QA (LG checklist 18): the terms can also be refused, which leaves the app.
+  const refuse = secondaryButton('Non accetto', () => exitApp());
+  proceed.style.flex = '2';
+  refuse.style.flex = '1';
+  refuse.style.marginRight = '24px';
   const sync = () => {
     check.classList.toggle('checked', confirmed);
     (box.firstChild as HTMLElement).style.visibility = confirmed ? 'visible' : 'hidden';
@@ -60,12 +65,12 @@ export function welcomeScreen(onContinue: () => void): Screen {
   check.addEventListener('click', () => { confirmed = !confirmed; sync(); });
   sync();
   const column = h('div', { class: 'col', style: 'width:1120px;align-items:center' },
-    brandMark(128, 'margin-bottom:28px'),
+    brandMark(72, 'margin-bottom:12px'),
     h('div', { class: 't-display', style: 'text-align:center' }, 'Benvenuto in StePlayer'),
-    h('div', { class: 't-body-l c2', style: 'text-align:center;margin:12px 0 32px' }, 'Lettore multimediale per le tue liste. Veloce, pulito e privato.'),
+    h('div', { class: 't-body-l c2', style: 'text-align:center;margin:8px 0 24px' }, 'Lettore multimediale per le tue liste. Veloce, pulito e privato.'),
     h('div', { style: 'width:100%' }, gateCard(), infoCard('lock', PRIVACY)),
-    h('div', { style: 'width:100%;margin:4px 0 24px' }, check),
-    h('div', { style: 'width:100%' }, proceed));
+    h('div', { style: 'width:100%;margin:0 0 16px' }, check),
+    h('div', { class: 'row', style: 'width:100%' }, refuse, proceed));
   const el = h('div', { class: 'screen', style: 'display:flex;align-items:center;justify-content:center' },
     h('div', { style: 'position:absolute;left:540px;top:-200px;width:840px;height:840px;background:radial-gradient(rgba(255,162,31,0.30), transparent 70%)' }),
     column);
@@ -99,7 +104,7 @@ export function addSourceScreen(opts: { editId?: number; onSaved: (id: number, i
   const modeRemote = h('div', { 'data-focus': true, class: 's102' }, 'Inserisci con il telecomando');
   const modes = h('div', { class: 'tabs2' }, modePhone, modeRemote);
   const smartThingsHint = h('div', { class: 't-body-s c2', style: 'margin:0 8px 24px' },
-    "Suggerimento: quando si apre la tastiera del televisore puoi scrivere (o incollare) dal telefono con l'app Samsung SmartThings.");
+    `Suggerimento: quando si apre la tastiera del televisore puoi scrivere (o incollare) dal telefono con l'app ${isWebOS ? 'LG ThinQ' : 'Samsung SmartThings'}.`);
   const hint = h('div', { class: 't-label-l c2', style: 'margin:0 8px 16px' }, 'Accedi con indirizzo, username e password del tuo server');
   const advancedToggle = h('div', { class: 'row s102', 'data-focus': true, style: 'padding:12px 8px;border-radius:24px;color:var(--text2);display:inline-flex' },
     h('span', { class: 't-label-l' }, 'Avanzate'), icon('expand_more', 48));

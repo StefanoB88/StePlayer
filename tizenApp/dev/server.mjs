@@ -206,9 +206,10 @@ createServer((req, res) => {
     return;
   }
   if (/^\/(dev\/)?(live|movie|series|timeshift)\//.test(p) || /^\/demo\/demo\//.test(p)) return sendMedia(req, res);
-  // build/ static files
-  const file = join(root, 'build', p === '/' ? 'index.html' : p.replace(/^\/+/, ''));
-  if (file.startsWith(join(root, 'build')) && existsSync(file) && statSync(file).isFile()) {
+  // build/ static files (BUILD_DIR=build-webos for the LG build)
+  const buildDir = join(root, process.env.BUILD_DIR || 'build');
+  const file = join(buildDir, p === '/' ? 'index.html' : p.replace(/^\/+/, ''));
+  if (file.startsWith(buildDir) && existsSync(file) && statSync(file).isFile()) {
     return send(200, readFileSync(file), TYPES[extname(file)] || 'application/octet-stream');
   }
   send(404, 'not found', 'text/plain');

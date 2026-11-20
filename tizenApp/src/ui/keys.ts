@@ -1,4 +1,5 @@
-// Samsung remote key codes (+ desktop keyboard equivalents for development).
+// Remote key codes: Samsung (Tizen) and LG (webOS, Back = 461), plus desktop keyboard equivalents for development.
+import { exitApp as platformExit } from './platform.ts';
 export type Key =
   | 'up' | 'down' | 'left' | 'right' | 'enter' | 'back' | 'playPause' | 'play' | 'pause' | 'stop'
   | 'ff' | 'rw' | 'chUp' | 'chDown' | 'red' | 'green' | 'yellow' | 'blue' | 'info' | 'digit' | 'enterLong' | 'other';
@@ -14,7 +15,7 @@ export function mapKey(e: KeyboardEvent): KeyPress {
   else if (c === 37) key = 'left';
   else if (c === 39) key = 'right';
   else if (c === 13 || c === 65376) key = 'enter';
-  else if (c === 10009 || c === 27 || (c === 8 && !isTyping(e))) key = 'back';
+  else if (c === 10009 || c === 461 || c === 27 || (c === 8 && !isTyping(e))) key = 'back';
   else if (c === 10252 || (c === 32 && !isTyping(e))) key = 'playPause';
   else if (c === 415) key = 'play';
   else if (c === 19) key = 'pause';
@@ -57,7 +58,4 @@ export function registerRemoteKeys(): void {
   try { t.tvinputdevice.registerKeyBatch(keys); } catch { /* older firmware: arrows/enter/back still work */ }
 }
 
-export function exitApp(): void {
-  const t = tizen();
-  try { t?.application?.getCurrentApplication().exit(); } catch { /* desktop */ }
-}
+export function exitApp(): void { platformExit(); }

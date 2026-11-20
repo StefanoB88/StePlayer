@@ -19,6 +19,11 @@ export interface Zone {
   focusedRect(): DOMRect | null;
   /** Optional extra keys while focused (colour keys, long-press replacement...). */
   onKey?(k: KeyPress): boolean;
+  /** Magic Remote / mouse: highlights the item under the pointer, without scrolling. False (and no change) when
+   *  there is nothing focusable there. */
+  pointerFocus?(target: HTMLElement): boolean;
+  /** Pointer click on an item without a click handler of its own (virtualised rows). */
+  pointerActivate?(target: HTMLElement): boolean;
 }
 
 export class FocusScope {
@@ -51,6 +56,19 @@ export class FocusScope {
     }
     if (preferred && this.focus(preferred)) return;
     for (const z of this.zones) if (this.focus(z)) return;
+  }
+
+  /** The pointer is over `target` inside `zone`: that item gets the focus (the remote continues from there). */
+  pointAt(zone: Zone, target: HTMLElement): boolean {
+    if (!zone.canFocus()) return false;
+    if (zone.pointerFocus) {
+      const prev = this.current;
+      if (!zone.pointerFocus(target)) return false;
+      if (prev && prev !== zone) prev.leave();
+      this.current = zone;
+      return true;
+    }
+    return this.current === zone || this.focus(zone);
   }
 
   handle(k: KeyPress): boolean {
@@ -264,6 +282,13 @@ export class ElementsZone implements Zone {
 
   focusElement(el: HTMLElement): void { this.set(el); }
 
+  pointerFocus(target: HTMLElement): boolean {
+    const el = target.closest ? target.closest('[data-focus]') as HTMLElement | null : null;
+    if (!el || !this.el.contains(el) || el.hasAttribute('data-disabled')) return false;
+    if (this.focused !== el || !el.classList.contains('focused')) this.set(el, false);
+    return true;
+  }
+
   leave(): void { if (this.focused) this.focused.classList.remove('focused'); }
 
   move(dir: Dir): boolean {
@@ -281,11 +306,11 @@ export class ElementsZone implements Zone {
 
   focusedRect(): DOMRect | null { return this.focused ? this.focused.getBoundingClientRect() : null; }
 
-  private set(el: HTMLElement): void {
+  private set(el: HTMLElement, scroll = true): void {
     if (this.focused && this.focused !== el) this.focused.classList.remove('focused');
     this.focused = el;
     el.classList.add('focused');
-    if (this.opts.scroller) ensureVisible(el, this.opts.scroller, this.opts.axis || 'y', this.opts.pad ?? 48);
+    if (scroll && this.opts.scroller) ensureVisible(el, this.opts.scroller, this.opts.axis || 'y', this.opts.pad ?? 48);
     if (this.opts.onFocus) this.opts.onFocus(el);
   }
 }
@@ -328,6 +353,15 @@ function directional(items: HTMLElement[], cur: HTMLElement, dir: Dir): HTMLElem
     if (score < bestScore) { bestScore = score; best = e; }
   }
   return best;
+}
+
+/** Index of the virtualised row (direct child of `inner`) that contains `target`, or -1. */
+function rowIndexAt(target: HTMLElement, inner: HTMLElement, count: number): number {
+  let e: HTMLElement | null = target;
+  while (e && e.parentElement !== inner) e = e.parentElement;
+  if (!e) return -1;
+  const i = Number(e.getAttribute('data-vindex'));
+  return i >= 0 && i < count ? i : -1;
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -427,6 +461,26 @@ export class VirtualList<T> implements Zone {
     if (it !== undefined && this.o.onActivate) this.o.onActivate(it, this.index);
   }
 
+  pointerFocus(target: HTMLElement): boolean {
+    const i = rowIndexAt(target, this.inner, this.items.length);
+    if (i < 0) return false;
+    if (this.hasFocus && i === this.index) return true;
+    const prev = this.rendered.get(this.index);
+    if (prev) prev.classList.remove('focused');
+    this.hasFocus = true;
+    this.index = i;
+    const cur = this.rendered.get(i);
+    if (cur) cur.classList.add('focused');
+    if (this.o.onFocusChange) this.o.onFocusChange(this.items[i], i);
+    return true;
+  }
+
+  pointerActivate(target: HTMLElement): boolean {
+    if (!this.pointerFocus(target)) return false;
+    this.activate();
+    return true;
+  }
+
   focusedRect(): DOMRect | null {
     const e = this.rendered.get(this.index);
     return e ? e.getBoundingClientRect() : null;
@@ -484,6 +538,7 @@ export class VirtualList<T> implements Zone {
       e.style.right = '0';
       e.style.top = `${(this.o.padTop || 0) + i * this.stride}px`;
       e.style.height = `${this.o.rowHeight}px`;
+      e.setAttribute('data-vindex', String(i));
       if (i === this.index && this.hasFocus) e.classList.add('focused');
       this.inner.appendChild(e);
       this.rendered.set(i, e);
@@ -588,6 +643,25 @@ export class VirtualGrid<T> implements Zone {
     if (it !== undefined && this.o.onActivate) this.o.onActivate(it, this.index);
   }
 
+  pointerFocus(target: HTMLElement): boolean {
+    const i = rowIndexAt(target, this.inner, this.items.length);
+    if (i < 0) return false;
+    if (this.hasFocus && i === this.index) return true;
+    const prev = this.rendered.get(this.index);
+    if (prev) prev.classList.remove('focused');
+    this.hasFocus = true;
+    this.index = i;
+    const cur = this.rendered.get(i);
+    if (cur) cur.classList.add('focused');
+    return true;
+  }
+
+  pointerActivate(target: HTMLElement): boolean {
+    if (!this.pointerFocus(target)) return false;
+    this.activate();
+    return true;
+  }
+
   focusedRect(): DOMRect | null {
     const e = this.rendered.get(this.index);
     return e ? e.getBoundingClientRect() : null;
@@ -632,6 +706,7 @@ export class VirtualGrid<T> implements Zone {
       e.style.left = `${this.o.padX + (i % this.cols) * (this.o.cellWidth + this.o.gapX)}px`;
       e.style.top = `${this.o.padTop + Math.floor(i / this.cols) * this.rowStride}px`;
       e.style.width = `${this.o.cellWidth}px`;
+      e.setAttribute('data-vindex', String(i));
       if (i === this.index && this.hasFocus) e.classList.add('focused');
       this.inner.appendChild(e);
       this.rendered.set(i, e);

@@ -1,4 +1,4 @@
-# StePlayer per TV Samsung (Tizen)
+# StePlayer per TV Samsung (Tizen) e LG (webOS)
 
 App web Tizen con la stessa grafica e le stesse funzioni delle app Android TV e iOS, pensata per il telecomando.
 Funziona sui televisori Samsung dal 2018 in poi (Tizen 4.0 e successivi). Si installa senza store, in modalità sviluppatore.
@@ -22,6 +22,18 @@ scripts/tv.sh 192.168.50.144   # IP del televisore
 ```
 Lo script compila, firma con il profilo `StePlayer` (`dist/StePlayer.wgt`), installa e avvia StePlayer.
 Il certificato vale un anno: dopo la scadenza va rinnovato e l'app reinstallata.
+
+## TV LG (webOS)
+Lo stesso codice gira sulle TV LG con webOS 4.0 e successivi: la piattaforma viene riconosciuta all'avvio. ID app
+`com.steplayer.app`; manifest, pagina, icone e splash sono in `webos/`.
+```sh
+npm run build:webos      # build-webos/ (bundle per Chromium 53)
+npm run package:webos    # dist/com.steplayer.app_<versione>_all.ipk
+scripts/webos.sh         # crea il pacchetto, lo installa sulla TV in modalità sviluppatore e lo avvia
+```
+Su LG il player usa il `<video>` di sistema, che decodifica in hardware. Sono supportati il puntatore, l'OK e la
+rotellina del Magic Remote. Il tasto Indietro (461), sulla Home, torna al launcher. Materiali per il Seller Lounge e
+checklist: `../store/lg/`.
 
 ## Sviluppo
 ```sh

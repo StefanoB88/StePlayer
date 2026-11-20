@@ -1,4 +1,4 @@
-// StePlayer for Samsung Smart TV (Tizen web app) — entry point.
+// StePlayer for Samsung (Tizen) and LG (webOS) TVs — entry point.
 import './polyfills.ts';
 import { createCore } from './core/index.ts';
 import { App, setApp } from './ui/app.ts';
@@ -10,6 +10,8 @@ import { openShell } from './ui/shell.ts';
 import { addSourceScreen, syncScreen, welcomeScreen } from './ui/screens/onboarding.ts';
 import { prefs } from './ui/prefs.ts';
 import { watchNetwork } from './ui/tvsystem.ts';
+import { initPlatform } from './ui/platform.ts';
+import { installPointer, isCursorVisible, lastPointerClick } from './ui/pointer.ts';
 
 declare const __DEV__: boolean;
 
@@ -45,6 +47,7 @@ function onKeyDown(e: KeyboardEvent): void {
     enterDown = true;
     enterLongFired = false;
     window.clearTimeout(enterTimer);
+    if (isCursorVisible()) { enterTimer = 0; return; } // Magic Remote pointer: OK clicks what is under it (see onKeyUp)
     enterTimer = window.setTimeout(() => {
       enterTimer = 0;
       enterLongFired = true;
@@ -61,6 +64,12 @@ function onKeyUp(e: KeyboardEvent): void {
   if (e.keyCode !== 13 && e.keyCode !== 65376) return;
   if (!enterDown) return;
   enterDown = false;
+  if (isCursorVisible()) {
+    // The pointer is on screen: OK normally arrives as a click on the element under it. Act as Enter only when no
+    // click came (pointer over empty space, or a firmware that sends just the key).
+    window.setTimeout(() => { if (Date.now() - lastPointerClick() > 500) dispatch({ key: 'enter', digit: -1, raw: e }); }, 150);
+    return;
+  }
   if (enterTimer) {
     window.clearTimeout(enterTimer);
     enterTimer = 0;
@@ -69,8 +78,10 @@ function onKeyUp(e: KeyboardEvent): void {
 }
 
 async function boot(): Promise<void> {
+  initPlatform();
   registerRemoteKeys();
   watchNetwork();
+  installPointer(() => app, dispatch);
   document.addEventListener('keydown', onKeyDown, true);
   document.addEventListener('keyup', onKeyUp, true);
   const root = document.getElementById('app') as HTMLElement;

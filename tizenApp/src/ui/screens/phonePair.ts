@@ -8,6 +8,7 @@ import { ElementsZone } from '../focus.ts';
 import { textField } from '../input.ts';
 import { prefs } from '../prefs.ts';
 import { errorMessage } from './onboarding.ts';
+import { platformLocalIp } from '../platform.ts';
 
 export interface PhonePanel {
   el: HTMLElement;
@@ -18,11 +19,8 @@ export interface PhonePanel {
 }
 
 function tvIp(): string | null {
-  try {
-    const w = window as unknown as { webapis?: { network?: { getIp(): string } } };
-    const ip = w.webapis && w.webapis.network ? w.webapis.network.getIp() : null;
-    if (ip) return ip;
-  } catch { /* no permission / desktop */ }
+  const ip = platformLocalIp(); // Samsung network API / LG connection manager
+  if (ip) return ip;
   // Development in a desktop browser opened on the LAN address.
   return subnetOf(location.hostname) ? location.hostname : null;
 }

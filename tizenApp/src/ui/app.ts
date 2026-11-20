@@ -11,6 +11,9 @@ export interface Screen {
   onKey?(k: KeyPress): boolean;
   /** Back pressed: return true when handled internally (close a drawer...). */
   onBack?(): boolean;
+  /** Magic Remote / mouse moved or clicked over this screen. Return true to consume a click (e.g. the player
+   *  shows its controls instead of activating what is under the pointer). */
+  onPointer?(kind: 'move' | 'click'): boolean;
   /** Became the top screen (again). */
   onShow?(): void;
   /** Covered by another screen. */
@@ -32,6 +35,9 @@ export class App {
   }
 
   get top(): Screen | null { return this.stack[this.stack.length - 1] || null; }
+
+  /** What receives keys and the pointer: the topmost dialog, otherwise the top screen. */
+  get active(): Screen | null { return this.dialogs[this.dialogs.length - 1] || this.top; }
 
   push(screen: Screen): void {
     const prev = this.top;

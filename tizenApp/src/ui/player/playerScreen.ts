@@ -412,6 +412,17 @@ export function playerScreen(initial: PlayRequest): Screen {
       seekFill = h('div', { class: 'p-seek-fill' });
       seekThumb = h('div', { class: 'p-seek-thumb' });
       const track = h('div', { class: 'p-seek s100', 'data-focus': true }, h('div', { class: 'p-seek-track' }, seekFill), seekThumb);
+      // Magic Remote / mouse: click on the bar jumps there (the remote's OK commits the preview instead).
+      track.addEventListener('click', (e) => {
+        const r = track.getBoundingClientRect();
+        if (!canSeek() || !e.clientX || r.width <= 0) return;
+        window.clearTimeout(scrubTimer);
+        scrubMs = null;
+        engine.seek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * Math.max(0, engine.durationMs - 1000));
+        watchdog.reset();
+        updateSeek();
+        armHide();
+      });
       timeLeft = h('div', { class: 't-label-l', style: 'color:#fff' });
       timeRight = h('div', { class: 't-label-l', style: 'color:rgba(255,255,255,0.7)' });
       bottom.append(track, h('div', { class: 'row', style: 'justify-content:space-between;margin-top:8px' }, timeLeft, timeRight));
@@ -1012,6 +1023,14 @@ export function playerScreen(initial: PlayRequest): Screen {
         case 'right': if (isLive()) showControls(); else { seekBy(10_000); showControls(); } return true;
         default: return false;
       }
+    },
+    onPointer: (kind) => {
+      interaction();
+      if (stillDialog || failure || retrying || drawerOpen) return false;
+      if (controlsVisible) { armHide(); return false; }
+      // Hidden controls: moving the pointer or clicking brings them up (the click is not passed on).
+      showControls();
+      return kind === 'click';
     },
     onBack: () => {
       if (drawerOpen) { closeDrawer(); return true; }

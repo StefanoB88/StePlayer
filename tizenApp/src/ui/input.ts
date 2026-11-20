@@ -41,8 +41,9 @@ export function stopEditing(): void {
 export function handleEditingKey(e: KeyboardEvent): boolean {
   if (!isEditing()) { editing = null; return false; }
   const c = e.keyCode;
-  // 65376 = Done, 65385 = Cancel (Samsung IME), 13 Enter, 10009 Back, 27 Esc; up/down leave the field.
-  if (c === 65376 || c === 65385 || c === 13 || c === 10009 || c === 27 || c === 38 || c === 40) {
+  // 65376 = Done, 65385 = Cancel (Samsung IME), 13 Enter (also LG keyboard), 10009 / 461 Back (Samsung / LG),
+  // 27 Esc; up/down leave the field.
+  if (c === 65376 || c === 65385 || c === 13 || c === 10009 || c === 461 || c === 27 || c === 38 || c === 40) {
     stopEditing();
     return c !== 38 && c !== 40; // arrows also move the focus
   }
