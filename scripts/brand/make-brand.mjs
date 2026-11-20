@@ -1,11 +1,12 @@
 // Renders every StePlayer icon and brand image from scripts/brand/brand.mjs with headless Chrome:
-//   node scripts/brand/make-brand.mjs [ios] [android] [tizen] [web] [play]     (no argument = all)
+//   node scripts/brand/make-brand.mjs [ios] [android] [tizen] [web] [play] [appstore]     (no argument = all)
 // Outputs:
 //   ios      iosApp/Resources/iOS AppIcon 1024, tvOS App Icon layers (400×240 @1x/@2x, 1280×768) and Top Shelf images
 //   android  androidApp/src/main/res/drawable-xhdpi/tv_banner.png (Android TV banner, 320×180 dp)
 //   tizen    tizenApp/static/icon.png (512×512)
 //   web      ~/steplayerwebsite/assets/icon.png (192) and favicon.png (64) — override with WEBSITE_DIR
 //   play     store/google-play/icon-512.png, feature-graphic-1024x500.png and tv-banner-1280x720.png
+//   appstore store/app-store/artwork: product page header (5244×2950, 3840×1646) and search results image (3840×2560)
 // The Android launcher icon is vector (res/drawable/ic_launcher_*.xml) and is not rendered here.
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -77,6 +78,29 @@ if (all || want.has('play')) {
       ${lockup(170, { markScale: 0.9, textScale: 0.5, gap: 0.14 }).replace('width:100%;height:100%', 'height:170px')}
       <div style="font:500 30px/1.2 ${FONT};color:${COLORS.gold};letter-spacing:.01em">Il lettore per le tue liste M3U</div>
     </div>`));
+}
+
+if (all || want.has('appstore')) {
+  // Optional App Store artwork (version page): product page header and search results image. Everything that
+  // matters stays in the centre, because the App Store crops these to different shapes on each device.
+  const S = join(root, 'store/app-store/artwork');
+  const art = (w, h, tagline = true) => {
+    // Logo height: the lockup (about 3.6 × its height wide) never takes more than ~55 % of the width or 30 % of the height.
+    const lh = Math.round(Math.min(w * 0.15, h * 0.3));
+    const deco = Math.round(h * 1.5); // large faded mark in the background, bleeding off the right edge
+    return full(w, h, `
+      <div style="position:relative;width:${w}px;height:${h}px;overflow:hidden">
+        <div style="position:absolute;right:${-Math.round(deco * 0.32)}px;top:${Math.round((h - deco) / 2)}px;opacity:.05">${iconSvg(deco, { background: false })}</div>
+        <div style="position:absolute;left:${-Math.round(deco * 0.42)}px;top:${Math.round((h - deco) / 2)}px;opacity:.03;transform:scaleX(-1)">${iconSvg(deco, { background: false })}</div>
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:${Math.round(lh * 0.16)}px">
+          ${lockup(lh, { markScale: 0.9, textScale: 0.5, gap: 0.14 }).replace('width:100%;height:100%', `height:${lh}px`)}
+          ${tagline ? `<div style="font:500 ${Math.round(lh * 0.17)}px/1.2 ${FONT};color:${COLORS.gold};letter-spacing:.01em">Il lettore per le tue liste M3U</div>` : ''}
+        </div>
+      </div>`);
+  };
+  await png(join(S, 'header-5244x2950.png'), 5244, 2950, art(5244, 2950));
+  await png(join(S, 'header-3840x1646.png'), 3840, 1646, art(3840, 1646));
+  await png(join(S, 'search-3840x2560.png'), 3840, 2560, art(3840, 2560));
 }
 
 await browser.close();
