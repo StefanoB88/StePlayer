@@ -46,19 +46,16 @@ struct OptionsDialog: View {
     let onDismiss: () -> Void
 
     var body: some View {
+        // Long lists scroll inside the card (DialogCard), as tall as the screen allows.
         DialogCard(title: title) {
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(options.indices, id: \.self) { i in
-                        RadioRow(label: options[i].0, selected: options[i].1) {
-                            onSelect(i)
-                            onDismiss()
-                        }
+            VStack(spacing: 0) {
+                ForEach(options.indices, id: \.self) { i in
+                    RadioRow(label: options[i].0, selected: options[i].1) {
+                        onSelect(i)
+                        onDismiss()
                     }
                 }
             }
-            .frame(maxHeight: 320)
-            .fixedSize(horizontal: false, vertical: true)
         } buttons: {
             TextAction(title: "Annulla", action: onDismiss)
         }

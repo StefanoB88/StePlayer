@@ -24,8 +24,8 @@ export function SettingsTab() {
       {sources.map((s) => (
         <View key={s.id} style={styles.card}>
           <View style={{ flex: 1 }}>
-            <Text style={F.title}>{s.name}{source && source.id === s.id ? '  ·  in uso' : ''}</Text>
-            <Text style={F.body2}>{s.type === 'M3U' ? 'Lista M3U' : 'Accesso al server'}{s.lastSyncAt ? ` · aggiornata ${new Date(s.lastSyncAt).toLocaleString('it-IT')}` : ''}</Text>
+            <Text style={F.title} numberOfLines={1}>{s.name}{source && source.id === s.id ? '  ·  in uso' : ''}</Text>
+            <Text style={F.body2} numberOfLines={2}>{s.type === 'M3U' ? 'Lista M3U' : 'Accesso al server'}{s.lastSyncAt ? ` · aggiornata ${new Date(s.lastSyncAt).toLocaleString('it-IT')}` : ''}</Text>
           </View>
           {source && source.id !== s.id ? <Button label="Usa" onPress={() => core.sources.setActive(s.id).then(reload)} style={styles.btn} /> : null}
           <Button label="Aggiorna" onPress={() => sync(s.id)} style={styles.btn} />

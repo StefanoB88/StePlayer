@@ -1,10 +1,10 @@
 // Main screen: side rail (Cerca, Home, Live, Film, Serie, Impostazioni) and the selected section. Back on a section
 // other than Home goes to Home; on Home it leaves the app (TV app behaviour).
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { TVFocusGuideView } from '@amazon-devices/react-native-kepler';
 import { Focusable } from '../components';
-import { useNav, useIsTop } from '../nav';
+import { SectionBackContext, useNav, useIsTop } from '../nav';
 import { useSession } from '../session';
 import { C, S } from '../theme';
 import { HomeTab } from './HomeTab';
@@ -28,10 +28,15 @@ export function ShellScreen() {
   const top = useIsTop();
   const { core, source } = useSession();
   const [tab, setTab] = useState<Tab>('home');
+  const sectionBack = useRef<(() => boolean) | null>(null);
 
   useEffect(() => {
     if (!top) return;
-    nav.setBackHandler(() => { if (tab !== 'home') { setTab('home'); return true; } return false; });
+    nav.setBackHandler(() => {
+      if (sectionBack.current && sectionBack.current()) return true; // e.g. the section empties its search first
+      if (tab !== 'home') { setTab('home'); return true; }
+      return false;
+    });
   }, [nav, tab, top]);
 
   // Catalog older than its refresh interval: update quietly in the background (TV app behaviour).
@@ -53,12 +58,14 @@ export function ShellScreen() {
         ))}
       </TVFocusGuideView>
       <View style={styles.content}>
-        {tab === 'home' ? <HomeTab /> : null}
-        {tab === 'live' ? <LiveTab /> : null}
-        {tab === 'movies' ? <VodTab type="MOVIE" /> : null}
-        {tab === 'series' ? <VodTab type="SERIES" /> : null}
-        {tab === 'search' ? <SearchTab /> : null}
-        {tab === 'settings' ? <SettingsTab /> : null}
+        <SectionBackContext.Provider value={sectionBack}>
+          {tab === 'home' ? <HomeTab /> : null}
+          {tab === 'live' ? <LiveTab /> : null}
+          {tab === 'movies' ? <VodTab type="MOVIE" /> : null}
+          {tab === 'series' ? <VodTab type="SERIES" /> : null}
+          {tab === 'search' ? <SearchTab /> : null}
+          {tab === 'settings' ? <SettingsTab /> : null}
+        </SectionBackContext.Provider>
       </View>
     </View>
   );
@@ -66,7 +73,7 @@ export function ShellScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, flexDirection: 'row', backgroundColor: C.bg },
-  rail: { width: S.railWidth, backgroundColor: C.surface, paddingVertical: 16, alignItems: 'center' },
+  rail: { width: S.railWidth, backgroundColor: C.surface, paddingVertical: 28, alignItems: 'center' }, // 28 dp: overscan-safe
   logo: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.elevated, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   logoGlyph: { color: C.accent, fontSize: 22 },
   railItem: { width: 76, paddingVertical: 8, borderRadius: 12, alignItems: 'center', marginBottom: 4, borderWidth: 2, borderColor: 'transparent' },

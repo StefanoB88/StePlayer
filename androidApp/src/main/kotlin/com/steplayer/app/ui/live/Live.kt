@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarViewWeek
@@ -46,6 +47,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -61,6 +64,12 @@ import com.steplayer.app.ui.components.EmptyState
 import com.steplayer.app.ui.components.LoadingBox
 import com.steplayer.app.ui.components.ProgressBar
 import com.steplayer.app.ui.components.RoundIconButton
+import com.steplayer.app.ui.components.SectionHeader
+import com.steplayer.app.ui.search.CorrectionBanner
+import com.steplayer.app.ui.search.ProgramResult
+import com.steplayer.app.ui.search.SectionSearch
+import com.steplayer.app.ui.search.SectionSearchBody
+import com.steplayer.app.ui.search.SectionSearchField
 import com.steplayer.app.ui.components.focusHighlight
 import com.steplayer.app.ui.components.rememberNow
 import com.steplayer.app.ui.components.pressable
@@ -132,6 +141,23 @@ class LiveViewModel(private val app: StePlayerApp, private val labels: Pair<Stri
 
     fun select(id: String) { selected.value = id }
 
+    /** Search box of the Live section: channels (and programmes on air) only. */
+    val search = SectionSearch(core, viewModelScope)
+
+    /** Channel hits of the search with now/next like the normal list; null while there are none to show. */
+    val searchChannels: StateFlow<List<ChannelWithEpg>?> = search.state
+        .map { ui -> ui.results?.channels?.map { it.channel } }
+        .distinctUntilChanged()
+        .flatMapLatest<List<Channel>?, List<ChannelWithEpg>?> { list ->
+            when {
+                list == null -> flowOf(null)
+                list.isEmpty() -> flowOf(emptyList())
+                else -> core.nowNextLive(list.first().sourceId, list)
+            }
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     fun toggleFavorite(channel: Channel, onResult: (Boolean) -> Unit) = viewModelScope.launch {
         runCatching { core.library.toggleFavorite(channel.sourceId, ContentType.LIVE, channel.id) }.onSuccess(onResult)
     }
@@ -143,10 +169,15 @@ fun LiveScreen(actions: AppActions) {
     val labels = stringResource(R.string.cat_favorites) to stringResource(R.string.cat_all)
     val vm = appViewModel { LiveViewModel(it, labels) }
     val state by vm.state.collectAsStateWithLifecycle()
+    val query by vm.search.query.collectAsStateWithLifecycle()
     val isTv = LocalIsTv.current
+    // Live only: categories in a vertical column on the left, channels on the right.
+    val wide = isTv || LocalConfiguration.current.screenWidthDp >= 600
+    val searchHint = stringResource(R.string.search_section_live)
 
     Column(Modifier.fillMaxSize().background(Palette.Background)) {
         AppTopBar(stringResource(R.string.nav_live), large = true) {
+            if (wide) SectionSearchField(query, vm.search::onQuery, searchHint, Modifier.width(if (isTv) 340.dp else 260.dp))
             RoundIconButton(Icons.Rounded.CalendarViewWeek, stringResource(R.string.tv_guide), {
                 val cat = state.selected
                 if (state.sourceId >= 0 && cat != null) actions.openGuide(state.sourceId, cat)
@@ -156,8 +187,11 @@ fun LiveScreen(actions: AppActions) {
                 RoundIconButton(Icons.Rounded.Settings, stringResource(R.string.nav_settings), actions::openSettings)
             }
         }
-        // Live only: categories in a vertical column on the left, channels on the right.
-        val wide = isTv || LocalConfiguration.current.screenWidthDp >= 600
+        if (!wide) SectionSearchField(query, vm.search::onQuery, searchHint, Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
+        if (query.isNotEmpty()) {
+            LiveSearchResults(vm, query, state.favorites, actions)
+            return@Column
+        }
         Row(Modifier.fillMaxSize()) {
             CategoryRail(
                 items = state.chips,
@@ -205,6 +239,48 @@ fun LiveScreen(actions: AppActions) {
     }
 }
 
+/** Live search results (all categories): channels with now/next, then programmes on air now. */
+@Composable
+private fun LiveSearchResults(vm: LiveViewModel, query: String, favorites: Set<String>, actions: AppActions) {
+    val context = LocalContext.current
+    val ui by vm.search.state.collectAsStateWithLifecycle()
+    val channels by vm.searchChannels.collectAsStateWithLifecycle()
+    SectionSearchBody(query, ui, isEmpty = { it.channels.isEmpty() && it.liveNow.isEmpty() }) { r ->
+        val now = rememberNow()
+        val list = channels.orEmpty()
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            r.correctedQuery?.let { c -> item(key = "corrected", contentType = "banner") { CorrectionBanner(c) } }
+            if (list.isNotEmpty() && r.liveNow.isNotEmpty()) {
+                item(key = "ch_h", contentType = "header") { SectionHeader(stringResource(R.string.search_channels)) }
+            }
+            items(list, key = { "ch_${it.channel.id}" }, contentType = { "channel" }) { item ->
+                ChannelRow(
+                    item = item,
+                    favorite = item.channel.id in favorites,
+                    now = now,
+                    onClick = { vm.search.remember(); actions.playChannel(item.channel, item.channel.categoryId) },
+                    onLongClick = {
+                        vm.toggleFavorite(item.channel) { fav ->
+                            context.toast(context.getString(if (fav) R.string.added_favorite else R.string.removed_favorite))
+                        }
+                    },
+                )
+            }
+            if (r.liveNow.isNotEmpty()) {
+                item(key = "now_h", contentType = "header") { SectionHeader(stringResource(R.string.search_live_now)) }
+                // EPG rows have no primary key: the same programme can appear twice, so keys carry the index.
+                itemsIndexed(r.liveNow, key = { i, it -> "now_${it.channel.id}_${it.program.startAt}#$i" }, contentType = { _, _ -> "program" }) { _, hit ->
+                    ProgramResult(hit, r.terms) { vm.search.remember(); actions.playChannel(hit.channel, hit.channel.categoryId) }
+                }
+            }
+        }
+    }
+}
+
 /**
  * Vertical, scrollable category list (Live section). The selected category has an accent bar
  * and tinted background; on TV it's reachable with D-pad left from the channel list.
@@ -212,6 +288,11 @@ fun LiveScreen(actions: AppActions) {
 @Composable
 private fun CategoryRail(items: List<ChipItem>, selected: String?, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
     val railState = rememberLazyListState()
+    // Narrow phone rail (118 dp): smaller labels, and long words hyphenate instead of breaking mid-word
+    // ("Generalist / i" with a large font).
+    val narrow = !LocalIsTv.current && LocalConfiguration.current.screenWidthDp < 600
+    val labelStyle = if (narrow) MaterialTheme.typography.labelMedium.copy(hyphens = Hyphens.Auto, lineBreak = LineBreak.Paragraph)
+    else MaterialTheme.typography.labelLarge
     // Keep the selected category visible (e.g. when coming back to the screen).
     LaunchedEffect(items.isNotEmpty()) {
         val index = items.indexOfFirst { it.id == selected }
@@ -243,7 +324,7 @@ private fun CategoryRail(items: List<ChipItem>, selected: String?, onSelect: (St
                 Spacer(Modifier.width(8.dp))
                 Text(
                     item.label,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = labelStyle,
                     color = if (isSelected) Palette.TextPrimary else Palette.TextSecondary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

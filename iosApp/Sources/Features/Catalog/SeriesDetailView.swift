@@ -7,6 +7,7 @@ struct SeriesDetailView: View {
     let id: String
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     @State private var series: Series?
     @State private var detail: SeriesDetail?
@@ -19,7 +20,9 @@ struct SeriesDetailView: View {
     /// The title has reached the top bar: the bar turns solid with the title.
     @State private var heroAway = false
 
-    private var wide: Bool { Theme.isTV || sizeClass == .regular }
+    /// Big iPhones in landscape are "regular" wide but only ~430 pt tall: the tall tablet header hid the title and
+    /// the play button below the fold, so they keep the phone layout.
+    private var wide: Bool { Theme.isTV || (sizeClass == .regular && verticalSizeClass != .compact) }
     private var seasons: [Int32] { detail?.seasons.map { $0.int32Value } ?? [] }
     private var selectedSeason: Int32? { season.flatMap { seasons.contains($0) ? $0 : nil } ?? seasons.first }
     private var episodes: [Episode] { selectedSeason.flatMap { detail?.episodesOf(season: $0) } ?? [] }
@@ -39,7 +42,8 @@ struct SeriesDetailView: View {
                 if notFound {
                     EmptyState(symbol: "play.rectangle.on.rectangle", text: "Nessuna serie in questa categoria")
                 } else if let s = series {
-                    content(s, topInset: geo.safeAreaInsets.top)
+                    content(s, topInset: geo.safeAreaInsets.top,
+                            compact: DetailLayout.compact(geo, sizeClass: sizeClass, verticalSizeClass: verticalSizeClass))
                 } else {
                     LoadingBox()
                 }
@@ -51,82 +55,109 @@ struct SeriesDetailView: View {
         .task { await load() }
     }
 
-    private func content(_ s: Series, topInset: CGFloat) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                BackdropHeader(image: detail?.backdrop ?? s.cover, title: s.name, height: (wide ? 360 : 280) + topInset)
-                HStack(alignment: .bottom, spacing: 24) {
-                    if wide {
-                        AspectBox(ratio: 2.0 / 3.0) { ArtImage(url: s.cover, title: s.name, points: Theme.isTV ? 330 : 240) }
-                            .frame(width: Theme.isTV ? 220 : 160)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(s.name).font(AppFont.headlineMedium).foregroundStyle(Theme.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .onTitleUnderTopBar(barBottom: topInset + 64) { away in
-                                if away != heroAway { heroAway = away }
-                            }
-                        let meta = [s.year.map { String($0.int32Value) }, AFormat.rating(s.rating?.doubleValue).map { "★ \($0)" }, s.genre]
-                            .compactMap { $0 }.joined(separator: "   ·   ")
-                        if !meta.isEmpty { Text(meta).font(AppFont.bodyMedium).foregroundStyle(Theme.textSecondary) }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.horizontal, 24)
-                .offset(y: -90)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    FlowLayout(spacing: 10, lineSpacing: 10) {
-                        if let next = upNext {
-                            let (ep, pos) = next
-                            let label = "S\(ep.season) E\(ep.number)"
-                            PrimaryButton(text: (pos > 30_000 ? "Riprendi da \(AFormat.duration(ms: pos))" : "Riproduci") + "  ·  \(label)", icon: "play.fill") {
-                                play(ep, fromStart: pos <= 30_000)
-                            }
+    private func content(_ s: Series, topInset: CGFloat, compact: Bool) -> some View {
+        ZStack(alignment: .top) {
+            if compact { DetailBackdropBackground(image: detail?.backdrop ?? s.cover, title: s.name) }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if compact {
+                        // iPad in landscape: header right under the top bar, the episodes start on the first screen.
+                        CompactDetailHeader(poster: s.cover, title: s.name, topInset: topInset) {
+                            titleBlock(s, topInset: topInset)
+                            Spacer().frame(height: 16)
+                            actionsBlock(s)
                         }
-                        SecondaryButton(text: "", icon: isFavorite ? "heart.fill" : "heart", tint: isFavorite ? Theme.live : Theme.textPrimary) {
-                            Task { _ = try? await app.core.library.toggleFavorite(sourceId: sourceId, type: .series, itemId: id) }
+                        .padding(.bottom, 16)
+                    } else {
+                        BackdropHeader(image: detail?.backdrop ?? s.cover, title: s.name, height: (wide ? 360 : 280) + topInset)
+                        HStack(alignment: .bottom, spacing: 24) {
+                            if wide {
+                                AspectBox(ratio: 2.0 / 3.0) { ArtImage(url: s.cover, title: s.name, points: Theme.isTV ? 330 : 240) }
+                                    .frame(width: Theme.isTV ? 220 : 160)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                            titleBlock(s, topInset: topInset)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .accessibilityLabel(isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti")
-                    }
-                    Spacer().frame(height: 16)
-                    if let plot = s.plot {
-                        Text(plot).font(AppFont.bodyLarge).foregroundStyle(Theme.textPrimary.opacity(0.9)).lineLimit(6)
-                        Spacer().frame(height: 10)
-                    }
-                    MetaLine(label: "Cast", value: detail?.cast)
-                    MetaLine(label: "Regia", value: detail?.director)
-                }
-                .padding(.horizontal, 24)
-                .offset(y: -70)
+                        .padding(.horizontal, 24)
+                        .offset(y: -90)
 
-                if seasons.count > 1 {
-                    CategoryChips(items: seasons.map { ChipItem(id: String($0), title: "Stagione \($0)") },
-                                  selected: selectedSeason.map { String($0) }) { season = Int32($0) }
-                        .frame(height: Theme.isTV ? 80 : 40)
-                        .offset(y: -50)
-                }
-
-                if loadingEpisodes {
-                    ProgressView().tint(Theme.primary).frame(maxWidth: .infinity).padding(32)
-                } else if episodes.isEmpty {
-                    Text("Nessun episodio disponibile").foregroundStyle(Theme.textSecondary).padding(24)
-                } else {
-                    ForEach(episodes, id: \.id) { ep in
-                        EpisodeRow(episode: ep, progress: progress[ep.id], download: downloads[ep.id],
-                                   onPlay: { play(ep, fromStart: !((progress[ep.id]?.fraction ?? 1) < 0.95)) },
-                                   onDownload: {
-                                       #if os(iOS)
-                                       DownloadUI.tap(downloads[ep.id], app: app) { _ = try await app.core.downloads.downloadEpisode(series: s, episode: ep) }
-                                       #endif
-                                   })
+                        actionsBlock(s)
+                            .padding(.horizontal, 24)
+                            .offset(y: -70)
                     }
-                    .offset(y: -40)
+
+                    // The tall layout pulls chips and episodes up under the hero text; the compact one has no overlap.
+                    if seasons.count > 1 {
+                        CategoryChips(items: seasons.map { ChipItem(id: String($0), title: "Stagione \($0)") },
+                                      selected: selectedSeason.map { String($0) }) { season = Int32($0) }
+                            .frame(height: Theme.isTV ? 80 : 40)
+                            .padding(.horizontal, compact ? 8 : 0)
+                            .padding(.bottom, compact ? 8 : 0)
+                            .offset(y: compact ? 0 : -50)
+                    }
+
+                    if loadingEpisodes {
+                        ProgressView().tint(Theme.primary).frame(maxWidth: .infinity).padding(32)
+                    } else if episodes.isEmpty {
+                        Text("Nessun episodio disponibile").foregroundStyle(Theme.textSecondary).padding(24)
+                    } else {
+                        ForEach(episodes, id: \.id) { ep in
+                            EpisodeRow(episode: ep, progress: progress[ep.id], download: downloads[ep.id],
+                                       onPlay: { play(ep, fromStart: !((progress[ep.id]?.fraction ?? 1) < 0.95)) },
+                                       onDownload: {
+                                           #if os(iOS)
+                                           DownloadUI.tap(downloads[ep.id], app: app) { _ = try await app.core.downloads.downloadEpisode(series: s, episode: ep) }
+                                           #endif
+                                       })
+                                .padding(.horizontal, compact ? 8 : 0)
+                        }
+                        .offset(y: compact ? 0 : -40)
+                    }
                 }
             }
+            .ignoresSafeArea(edges: .top)
         }
-        .ignoresSafeArea(edges: .top)
+    }
+
+    /// Title + meta line (year, rating, genre).
+    private func titleBlock(_ s: Series, topInset: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(s.name).font(AppFont.headlineMedium).foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .onTitleUnderTopBar(barBottom: topInset + 64) { away in
+                    if away != heroAway { heroAway = away }
+                }
+            let meta = [s.year.map { String($0.int32Value) }, AFormat.rating(s.rating?.doubleValue).map { "★ \($0)" }, s.genre]
+                .compactMap { $0 }.joined(separator: "   ·   ")
+            if !meta.isEmpty { Text(meta).font(AppFont.bodyMedium).foregroundStyle(Theme.textSecondary) }
+        }
+    }
+
+    /// Play / resume + favourite buttons, plot and credits.
+    private func actionsBlock(_ s: Series) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FlowLayout(spacing: 10, lineSpacing: 10) {
+                if let next = upNext {
+                    let (ep, pos) = next
+                    let label = "S\(ep.season) E\(ep.number)"
+                    PrimaryButton(text: (pos > 30_000 ? "Riprendi da \(AFormat.duration(ms: pos))" : "Riproduci") + "  ·  \(label)", icon: "play.fill") {
+                        play(ep, fromStart: pos <= 30_000)
+                    }
+                }
+                SecondaryButton(text: "", icon: isFavorite ? "heart.fill" : "heart", tint: isFavorite ? Theme.live : Theme.textPrimary) {
+                    Task { _ = try? await app.core.library.toggleFavorite(sourceId: sourceId, type: .series, itemId: id) }
+                }
+                .accessibilityLabel(isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti")
+            }
+            Spacer().frame(height: 16)
+            if let plot = s.plot {
+                Text(plot).font(AppFont.bodyLarge).foregroundStyle(Theme.textPrimary.opacity(0.9)).lineLimit(6)
+                Spacer().frame(height: 10)
+            }
+            MetaLine(label: "Cast", value: detail?.cast)
+            MetaLine(label: "Regia", value: detail?.director)
+        }
     }
 
     private func play(_ ep: Episode, fromStart: Bool) {
@@ -168,19 +199,24 @@ private struct EpisodeRow: View {
     let download: Download?
     let onPlay: () -> Void
     let onDownload: () -> Void
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// Accessibility text sizes: a smaller thumbnail leaves the title more than one word per line.
+    private var thumbWidth: CGFloat { Theme.isTV ? 240 : (typeSize.isAccessibilitySize ? 96 : 140) }
 
     var body: some View {
         HStack(spacing: 12) {
             Button(action: onPlay) {
                 HStack(spacing: 12) {
                     AspectBox(ratio: 16.0 / 9.0) { ArtImage(url: episode.image, title: episode.title, points: Theme.isTV ? 240 : 140) }
-                        .frame(width: Theme.isTV ? 240 : 140)
+                        .frame(width: thumbWidth)
                         .overlay(alignment: .bottom) {
                             if let p = progress, p.fraction > 0 { ProgressBar(progress: Double(p.fraction), height: 3).padding(6) }
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("\(episode.number). \(episode.title)").font(AppFont.titleSmall).foregroundStyle(Theme.textPrimary).lineLimit(2)
+                        Text("\(episode.number). \(episode.title)").font(AppFont.titleSmall).foregroundStyle(Theme.textPrimary)
+                            .lineLimit(typeSize.isAccessibilitySize ? 3 : 2)
                             .multilineTextAlignment(.leading)
                         if let d = Fmt.minutes(seconds: episode.durationSec?.intValue) {
                             Text(d).font(AppFont.bodySmall).foregroundStyle(Theme.textSecondary)

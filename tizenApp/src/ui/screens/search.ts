@@ -8,6 +8,7 @@ import { Format } from '../format.ts';
 import { session } from '../session.ts';
 import { actions } from '../actions.ts';
 import { startEditing } from '../input.ts';
+import { noResultsText } from './sectionSearch.ts';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 
@@ -60,8 +61,9 @@ export function searchScreen(): Screen {
   field.addEventListener('click', () => startEditing(input));
   const back = h('div', { class: 'iconbtn s110', 'data-focus': true }, icon('arrow_back', 48));
   back.addEventListener('click', () => app().pop());
-  const top = h('div', { class: 'row', style: 'padding:16px;height:136px' }, back, h('div', { style: 'width:16px' }), field);
-  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:136px;bottom:0;overflow:hidden' });
+  // Inset from the screen edges: everything stays inside the overscan-safe area (≥ 5 %).
+  const top = h('div', { class: 'row', style: 'padding:40px 64px 0 40px;height:160px' }, back, h('div', { style: 'width:16px' }), field);
+  const scroller = h('div', { style: 'position:absolute;left:24px;right:24px;top:160px;bottom:0;overflow:hidden' });
   const content = makeTrack(scroller);
   const el = h('div', { class: 'screen' }, top, scroller);
   const topZone = new ElementsZone(top, { only: 'x' });
@@ -152,7 +154,7 @@ export function searchScreen(): Screen {
       bar.style.width = '90%'; bar.style.marginTop = '12px';
       body.appendChild(bar);
     }
-    const row = h('div', { class: 'row s102', 'data-focus': true, style: 'background:var(--surface);border-radius:28px;padding:20px;margin:6px 24px' },
+    const row = h('div', { class: 'row s101', 'data-focus': true, style: 'background:var(--surface);border-radius:28px;padding:20px;margin:6px 40px 6px 32px' },
       logoBox(hit.channel.logo, hit.channel.name), body);
     row.addEventListener('click', () => open.program(hit));
     return row;
@@ -185,7 +187,7 @@ export function searchScreen(): Screen {
     clear(content); resetScroll(scroller);
     const empty = !r || (!r.liveNow.length && !r.upcoming.length && !r.replay.length && !r.channels.length && !r.movies.length && !r.series.length);
     if (!r || empty) {
-      content.appendChild(emptyState('search', `Nessun risultato per «${q}». Prova con un'altra parola o controlla l'ortografia.`));
+      content.appendChild(emptyState('search', noResultsText(q)));
       setZones([]);
       return;
     }
@@ -203,7 +205,7 @@ export function searchScreen(): Screen {
     progs('Replay', r.replay);
     if (r.channels.length) {
       section('Canali', h('div', { class: 'col' }, r.channels.map((hit) => {
-        const row = h('div', { class: 'row s102', 'data-focus': true, style: 'background:var(--surface);border-radius:28px;padding:20px;margin:6px 24px' },
+        const row = h('div', { class: 'row s101', 'data-focus': true, style: 'background:var(--surface);border-radius:28px;padding:20px;margin:6px 40px 6px 32px' },
           logoBox(hit.channel.logo, hit.channel.name), h('div', { class: 't-title-s ellipsis' }, highlight(hit.channel.name, terms)));
         row.addEventListener('click', () => open.channel(hit.channel));
         return row;

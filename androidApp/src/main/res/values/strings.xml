@@ -121,6 +121,9 @@
     <string name="search_results_for">Risultati per «%1$s»</string>
     <string name="search_other_airings">+%1$d repliche</string>
     <string name="search_nothing">Nessun risultato per «%1$s». Prova con un\'altra parola o controlla l\'ortografia.</string>
+    <string name="search_section_live">Cerca canali…</string>
+    <string name="search_section_movies">Cerca film…</string>
+    <string name="search_section_series">Cerca serie…</string>
     <string name="today">Oggi</string>
     <string name="tomorrow">Domani</string>
 

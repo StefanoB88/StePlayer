@@ -14,6 +14,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.steplayer.app.R
 import com.steplayer.app.ui.components.focusHighlight
@@ -158,6 +163,9 @@ private fun BottomBar(tabs: List<Tab>, selected: Tab, onSelect: (Tab) -> Unit) {
                     stringResource(tab.label),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (isSel) Palette.TextPrimary else Palette.TextSecondary,
+                    // One line: with a large font a wrapped label was cut by the fixed-height bar.
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -173,30 +181,39 @@ private fun NavRail(
     focusRequesters: Map<Tab, FocusRequester>,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier
-            .fillMaxHeight()
-            .width(92.dp)
-            .background(Palette.Surface)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Image(painterResource(R.drawable.ic_brand), null, modifier = Modifier.size(44.dp))
-        Spacer(Modifier.height(16.dp))
-        RailItem(Icons.Rounded.Search, stringResource(R.string.nav_search), false) { actions.openSearch() }
-        tabs.forEach { tab ->
-            RailItem(tab.icon, stringResource(tab.label), tab == selected, Modifier.focusRequester(focusRequesters.getValue(tab))) { onSelect(tab) }
+    // Settings sits at the bottom when everything fits; on short screens (phone in landscape: ~400 dp,
+    // TV with a larger font) the rail scrolls instead of clipping the last items.
+    BoxWithConstraints(modifier.fillMaxHeight().width(92.dp).background(Palette.Surface)) {
+        // Phone in landscape (~360 dp of usable height): icons only, no logo, so every tab stays visible.
+        val compact = !LocalIsTv.current && maxHeight < 480.dp
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = maxHeight)
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(vertical = if (compact) 8.dp else 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (!compact) {
+                    Image(painterResource(R.drawable.ic_brand), null, modifier = Modifier.size(44.dp))
+                    Spacer(Modifier.height(16.dp))
+                }
+                RailItem(Icons.Rounded.Search, stringResource(R.string.nav_search), false, showLabel = !compact) { actions.openSearch() }
+                tabs.forEach { tab ->
+                    RailItem(tab.icon, stringResource(tab.label), tab == selected, Modifier.focusRequester(focusRequesters.getValue(tab)), showLabel = !compact) { onSelect(tab) }
+                }
+            }
+            RailItem(Icons.Rounded.Settings, stringResource(R.string.nav_settings), false, Modifier.padding(top = 6.dp), showLabel = !compact) { actions.openSettings() }
         }
-        Spacer(Modifier.weight(1f))
-        RailItem(Icons.Rounded.Settings, stringResource(R.string.nav_settings), false) { actions.openSettings() }
     }
 }
 
 @Composable
-private fun RailItem(icon: ImageVector, label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun RailItem(icon: ImageVector, label: String, selected: Boolean, modifier: Modifier = Modifier, showLabel: Boolean = true, onClick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     Column(
         modifier
@@ -209,7 +226,9 @@ private fun RailItem(icon: ImageVector, label: String, selected: Boolean, modifi
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, label, tint = if (selected) Palette.Accent else Palette.TextSecondary, modifier = Modifier.size(24.dp))
-        Spacer(Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = if (selected) Palette.TextPrimary else Palette.TextSecondary, maxLines = 1)
+        if (showLabel) {
+            Spacer(Modifier.height(4.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = if (selected) Palette.TextPrimary else Palette.TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }

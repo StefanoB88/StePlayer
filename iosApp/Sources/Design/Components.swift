@@ -368,7 +368,8 @@ struct SecondaryButton: View {
                         .foregroundStyle(enabled ? Theme.textPrimary : Theme.textSecondary)
                 }
             }
-            .padding(.horizontal, 18).padding(.vertical, 13)
+            // Icon-only (favourite): narrower, so "Riproduci · Scarica · ♡" fits one row on a 375 pt phone.
+            .padding(.horizontal, text.isEmpty ? 15 : 18).padding(.vertical, 13)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .background(Theme.surfaceElevated, in: Capsule())
             .contentShape(Capsule())
@@ -492,10 +493,20 @@ struct DialogCard<Content: View, Buttons: View>: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title).font(AppFont.headlineSmall).foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
-            content()
-            HStack(spacing: 8) {
-                Spacer(minLength: 0)
-                buttons()
+            // Short screens (iPhone in landscape: ~375 pt, large text): the content scrolls between the title and
+            // the buttons instead of the card running off the top and bottom of the screen.
+            ViewThatFits(in: .vertical) {
+                content()
+                ScrollView { content() }.scrollBounceBehavior(.basedOnSize)
+            }
+            // Buttons side by side, or stacked (right-aligned) when they don't fit the card's width.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    buttons()
+                }
+                VStack(alignment: .trailing, spacing: 8) { buttons() }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .padding(24)

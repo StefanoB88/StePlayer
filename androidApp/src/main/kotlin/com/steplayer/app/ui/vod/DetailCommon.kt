@@ -3,6 +3,16 @@ package com.steplayer.app.ui.vod
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalConfiguration
+import com.steplayer.app.ui.components.tvFocusStop
+import com.steplayer.app.ui.theme.LocalIsTv
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -60,6 +70,79 @@ fun BackdropHeader(image: String?, title: String, height: Dp) {
     }
 }
 
+/**
+ * Compact detail layout for wide but short screens: TV (960x540 dp at 1080p/xhdpi and 720p/tvdpi),
+ * phones in landscape and tablets in landscape (~1280x750 dp usable on a 10-11" tablet). The tall
+ * hero layout put the action buttons ~550 dp down the page, i.e. below the bottom edge of a TV, and
+ * on a landscape tablet it pushed the season chips and the episode list off the first screen.
+ * Tablets in portrait (800x1280 dp) keep the hero layout: there the height is plenty.
+ */
+@Composable
+fun rememberDetailCompact(): Boolean {
+    val cfg = LocalConfiguration.current
+    val w = cfg.screenWidthDp
+    val h = cfg.screenHeightDp
+    return LocalIsTv.current || (w >= 600 && w > h && (h < 900 || w >= h * 1.4f))
+}
+
+/** Side margin of the compact detail page: wider on TV, clear of the overscan area. */
+@Composable
+private fun compactGutter(): Dp = if (LocalIsTv.current) 48.dp else 24.dp
+
+/**
+ * Widest the text column of the compact header gets: on a landscape tablet a plot running the full
+ * ~1100 dp next to the poster is hard to read. TV (≤ 690 dp available) never reaches it.
+ */
+val CompactDetailMaxTextWidth = 760.dp
+
+/** Backdrop filling the whole screen behind a compact detail page (it stays put while the page scrolls). */
+@Composable
+fun DetailBackdropBackground(image: String?, title: String) {
+    Box(Modifier.fillMaxSize()) {
+        ArtImage(image, title, Modifier.fillMaxSize(), placeholderTextVisible = false)
+        Box(Modifier.matchParentSize().background(Palette.Background.copy(alpha = 0.35f)))
+        Box(Modifier.matchParentSize().background(Palette.ScrimLeft))
+        Box(Modifier.matchParentSize().background(Palette.ScrimBottom))
+    }
+}
+
+/**
+ * Poster on the left, [content] (title, meta, buttons, plot) on the right, starting right under the
+ * top bar: on a 540 dp tall screen the buttons are always on the first screen.
+ */
+@Composable
+fun CompactDetailHeader(poster: String?, title: String, content: @Composable ColumnScope.() -> Unit) {
+    val isTv = LocalIsTv.current
+    // Landscape tablets (≥ 700 dp tall) have room for a bigger poster; phones in landscape keep 120 dp.
+    val posterWidth = when {
+        isTv -> 150.dp
+        LocalConfiguration.current.screenHeightDp >= 700 -> 170.dp
+        else -> 120.dp
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(top = DetailTopBarHeight + 8.dp, start = compactGutter(), end = compactGutter()),
+        verticalAlignment = Alignment.Top,
+    ) {
+        ArtImage(poster, title, Modifier.width(posterWidth).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)))
+        Spacer(Modifier.width(28.dp))
+        Column(Modifier.weight(1f, fill = false).widthIn(max = CompactDetailMaxTextWidth), content = content)
+    }
+}
+
+/**
+ * TV: makes a block of text (plot, cast…) a focus stop of its own, so the D-pad can reach it and the
+ * page scrolls to it even when no button follows. No-op on touch screens.
+ */
+@Composable
+fun Modifier.tvReadable(): Modifier {
+    if (!LocalIsTv.current) return this
+    // Negative offset + padding: the text stays aligned with the rest, the focus border gets some air.
+    return offset(x = (-10).dp).tvFocusStop().padding(horizontal = 10.dp, vertical = 6.dp)
+}
+
 /** Height of [DetailTopBar] below the status bar. */
 val DetailTopBarHeight = 64.dp
 
@@ -76,7 +159,8 @@ fun rememberDetailCollapse(forceCollapsed: () -> Boolean = { false }): DetailCol
     val density = LocalDensity.current
     val barBottom = WindowInsets.statusBars.getTop(density) + with(density) { DetailTopBarHeight.toPx() }
     val titleTop = remember { mutableFloatStateOf(Float.POSITIVE_INFINITY) }
-    val collapsed = remember(barBottom) { derivedStateOf { forceCollapsed() || titleTop.floatValue < barBottom } }
+    // 1 px tolerance: a title laid out right at the bar's bottom edge (dp rounding at tvdpi) is not under it.
+    val collapsed = remember(barBottom) { derivedStateOf { forceCollapsed() || titleTop.floatValue < barBottom - 1f } }
     val modifier = remember { Modifier.onGloballyPositioned { titleTop.floatValue = it.positionInRoot().y } }
     return remember(collapsed) { DetailCollapse(modifier, collapsed) }
 }

@@ -38,14 +38,21 @@ server sul Mac e caricherà da sola la lista demo. In Release resta `null`.
 - **Ogni invio:** il numero di build cresce (`build-number` in `manifest.toml`).
 - **Permessi nel manifest:** rete, riproduzione multimediale e tastiera a schermo (`com.amazon.inputmethod.service`).
   Senza quest'ultimo la tastiera non si apre.
+- **Flussi `http://`:** `[network-traffic-policy.cleartext]` con `allowed-domains = ["*"]`. Senza, il lettore di Vega
+  rifiuta ogni indirizzo non https ("Invalid or insecure URI scheme") e quasi nessun server Xtream funziona. La chiave
+  non è nella documentazione Amazon che ho trovato: provata nel Vega Virtual Device (SDK 2.0), da ricontrollare se
+  la revisione Amazon la contesta.
 
 ## Stato
 - **Provato nel Vega Virtual Device:**
   - avvio e salvataggio dei dati;
   - Home, Live, Film, ricerca, pagina film;
-  - canali HLS con cambio canale, film MP4, ripresa dal punto salvato.
+  - canali HLS con cambio canale, film MP4, ripresa dal punto salvato;
+  - film MP4 da un server `http://`;
+  - ricerca nelle sezioni Live/Film/Serie con la tastiera Amazon, Back che svuota la ricerca;
+  - schermate con dati estremi (titoli lunghissimi, 30 categorie, 14 stagioni, trame lunghe): niente tagliato;
+  - errore con "Riprova" quando un video non parte.
 - **Da verificare su un Fire TV vero:**
-  - inserimento del testo con la tastiera Amazon;
   - flussi `.ts` diretti;
   - sottotitoli e tracce audio;
   - liste molto grandi (velocità di salvataggio in `/data`).

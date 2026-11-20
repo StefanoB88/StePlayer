@@ -20,6 +20,7 @@ import coil3.request.crossfade
 import com.steplayer.app.cast.CastSupport
 import com.steplayer.app.download.AndroidDownloadEngine
 import com.steplayer.app.ui.components.ArtworkSizeInterceptor
+import com.steplayer.app.reminders.AccountRefresher
 import com.steplayer.app.reminders.ExpiryScheduler
 import com.steplayer.shared.StePlayerCore
 import com.steplayer.shared.playback.BufferAdvisor
@@ -103,6 +104,8 @@ class StePlayerApp : Application(), SingletonImageLoader.Factory, WorkConfigurat
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) enableStrictMode()
+        // Expiry date refreshed on every return to the foreground and every 15 minutes (phone and TV).
+        AccountRefresher.install(this)
         appScope.launch(Dispatchers.IO) {
             prefs // loads the SharedPreferences file
             core

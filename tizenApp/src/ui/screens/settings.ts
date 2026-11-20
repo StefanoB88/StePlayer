@@ -32,6 +32,14 @@ function settingRow(iconName: string, title: string, subtitle?: string | null, o
   return row;
 }
 
+/** Read-only row that still takes the focus, so that the remote can scroll down to it (legal notes, version). */
+function infoRow(iconName: string, title: string, subtitle?: string | null): HTMLElement {
+  const row = settingRow(iconName, title, subtitle);
+  row.setAttribute('data-focus', '');
+  row.classList.add('s100');
+  return row;
+}
+
 function switchRow(iconName: string, title: string, subtitle: string, checked: boolean, onChange: (v: boolean) => void): HTMLElement {
   const knob = h('div', { style: `position:absolute;top:6px;left:${checked ? 46 : 6}px;width:44px;height:44px;border-radius:50%;background:${checked ? '#fff' : 'var(--text2)'}` });
   const track = h('div', { style: `position:relative;width:96px;height:56px;border-radius:999px;flex:0 0 auto;background:${checked ? 'var(--accent)' : 'var(--outline)'}` }, knob);
@@ -64,7 +72,7 @@ export function settingsScreen(): Screen {
   const core = app().core;
   const top = topBarWithBack('Impostazioni');
   const column = h('div', { style: 'width:1400px;margin:0 auto;padding:16px 0 96px' });
-  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:128px;bottom:0;overflow:hidden' }, column);
+  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:152px;bottom:0;overflow:hidden' }, column);
   makeTrack(scroller);
   const el = h('div', { class: 'screen' }, top.el, scroller);
   const zone = new ElementsZone(column, { scroller, axis: 'y', pad: 200 });
@@ -129,12 +137,12 @@ export function settingsScreen(): Screen {
       }),
     ]));
     column.appendChild(sectionBox('Note legali', [
-      settingRow('info', DISCLAIMER),
-      settingRow('lock', 'Privacy', 'StePlayer non raccoglie alcun dato. Liste, preferiti e cronologia restano solo su questo televisore.'),
-      settingRow('info', 'StePlayer non è affiliato con alcun provider e non fornisce contenuti, liste o abbonamenti.'),
-      settingRow('info', 'Informativa privacy e termini d\'uso', 'stefanob88.github.io/steplayerwebsite'),
+      infoRow('info', DISCLAIMER),
+      infoRow('lock', 'Privacy', 'StePlayer non raccoglie alcun dato. Liste, preferiti e cronologia restano solo su questo televisore.'),
+      infoRow('info', 'StePlayer non è affiliato con alcun provider e non fornisce contenuti, liste o abbonamenti.'),
+      infoRow('info', 'Informativa privacy e termini d\'uso', 'stefanob88.github.io/steplayerwebsite'),
     ]));
-    column.appendChild(sectionBox('Informazioni', [settingRow('info', 'StePlayer', `Versione ${VERSION}`)]));
+    column.appendChild(sectionBox('Informazioni', [infoRow('info', 'StePlayer', `Versione ${VERSION}`)]));
 
     if (focusedIndex >= 0 && scope.current === zone) {
       const items = zone.items();
@@ -204,7 +212,7 @@ function categoriesScreen(sourceId: number, type: ContentType): Screen {
   const title = type === 'LIVE' ? 'Live' : type === 'MOVIE' ? 'Film' : 'Serie';
   const top = topBarWithBack(`Categorie visibili · ${title}`);
   const column = h('div', { style: 'width:1400px;margin:0 auto;padding:16px 0 96px' });
-  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:128px;bottom:0;overflow:hidden' }, column);
+  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:152px;bottom:0;overflow:hidden' }, column);
   makeTrack(scroller);
   const el = h('div', { class: 'screen' }, top.el, scroller);
   const zone = new ElementsZone(column, { scroller, axis: 'y', pad: 200 });
@@ -235,7 +243,7 @@ function subtitlesScreen(): Screen {
   const core = app().core;
   const top = topBarWithBack('Sottotitoli');
   const column = h('div', { style: 'width:1400px;margin:0 auto;padding:16px 0 96px' });
-  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:128px;bottom:0;overflow:hidden' }, column);
+  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:152px;bottom:0;overflow:hidden' }, column);
   makeTrack(scroller);
   const el = h('div', { class: 'screen' }, top.el, scroller);
   const zone = new ElementsZone(column, { scroller, axis: 'y', pad: 200 });

@@ -29,7 +29,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -148,6 +154,7 @@ class SeriesDetailViewModel(private val app: StePlayerApp, private val sourceId:
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SeriesDetailScreen(sourceId: Long, id: String, actions: AppActions) {
     val vm = appViewModel(key = "series_${sourceId}_$id") { SeriesDetailViewModel(it, sourceId, id) }
@@ -159,62 +166,89 @@ fun SeriesDetailScreen(sourceId: Long, id: String, actions: AppActions) {
 
     val list = rememberLazyListState()
     val heroHeight = if (wide) 360.dp else 280.dp
+    val compact = rememberDetailCompact()
+    // Season chips and episodes line up with the compact header (24 dp phone landscape, 48 dp TV).
+    val gutter = if (!compact) 16.dp else if (isTv) 48.dp else 24.dp
     // The header item (with the title) may be disposed once scrolled far away: past it, always collapsed.
     val collapse = rememberDetailCollapse(forceCollapsed = { list.firstVisibleItemIndex > 0 })
+    val playFocus = remember { FocusRequester() }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         val s = state.series
+        if (compact && s != null) DetailBackdropBackground(state.detail?.backdrop ?: s.cover, s.name)
         when {
             state.notFound -> EmptyState(Icons.Rounded.VideoLibrary, stringResource(R.string.empty_series))
             s == null -> LoadingBox()
             else -> LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 32.dp)) {
-                item(key = "header", contentType = "header") {
-                    Column {
-                        BackdropHeader(state.detail?.backdrop ?: s.cover, s.name, heroHeight)
-                        Row(Modifier.fillMaxWidth().offset(y = (-90).dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.Bottom) {
-                            if (wide) {
-                                ArtImage(s.cover, s.name, Modifier.width(160.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)))
-                                Spacer(Modifier.width(24.dp))
-                            }
-                            Column(Modifier.weight(1f)) {
-                                Text(s.name, style = MaterialTheme.typography.headlineMedium, modifier = collapse.titleModifier)
-                                val meta = listOfNotNull(s.year?.toString(), Format.rating(s.rating)?.let { "★ $it" }, s.genre).joinToString("   ·   ")
-                                if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodyMedium, color = Palette.TextSecondary)
-                            }
+                val next = state.upNext
+                val title: @Composable () -> Unit = {
+                    Text(s.name, style = MaterialTheme.typography.headlineMedium, modifier = collapse.titleModifier)
+                    val meta = listOfNotNull(s.year?.toString(), Format.rating(s.rating)?.let { "★ $it" }, s.genre).joinToString("   ·   ")
+                    if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodyMedium, color = Palette.TextSecondary)
+                }
+                val body: @Composable () -> Unit = {
+                    // TV: start on "Riproduci" (or on the heart while there's no episode to play), so OK plays.
+                    if (isTv) LaunchedEffect(next != null) { runCatching { playFocus.requestFocus() } }
+                    // FlowRow: a long "Riprendi da 1:02:03 · S1 E10" wraps instead of squeezing the heart off screen.
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (next != null) {
+                            val (ep, pos) = next
+                            val label = "S${ep.season} E${ep.number}"
+                            PrimaryButton(
+                                if (pos > 30_000) stringResource(R.string.resume_from, Format.duration(pos)) + "  ·  $label"
+                                else stringResource(R.string.play) + "  ·  $label",
+                                icon = Icons.Rounded.PlayArrow,
+                                onClick = { play(ep, pos) },
+                                modifier = Modifier.focusRequester(playFocus),
+                            )
                         }
-                        Column(Modifier.offset(y = (-70).dp).padding(horizontal = 24.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                val next = state.upNext
-                                if (next != null) {
-                                    val (ep, pos) = next
-                                    val label = "S${ep.season} E${ep.number}"
-                                    PrimaryButton(
-                                        if (pos > 30_000) stringResource(R.string.resume_from, Format.duration(pos)) + "  ·  $label"
-                                        else stringResource(R.string.play) + "  ·  $label",
-                                        icon = Icons.Rounded.PlayArrow,
-                                        onClick = { play(ep, pos) },
-                                    )
-                                }
-                                SecondaryButton(
-                                    "", icon = if (state.favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                                    tint = if (state.favorite) Palette.Live else Palette.TextPrimary,
-                                    onClick = vm::toggleFavorite,
-                                )
-                            }
+                        SecondaryButton(
+                            "", icon = if (state.favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            tint = if (state.favorite) Palette.Live else Palette.TextPrimary,
+                            onClick = vm::toggleFavorite,
+                            modifier = if (next == null) Modifier.focusRequester(playFocus) else Modifier,
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    s.plot?.let {
+                        Text(it, style = MaterialTheme.typography.bodyLarge, color = Palette.TextPrimary.copy(alpha = 0.9f), maxLines = 6, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    MetaLine(stringResource(R.string.cast_label), state.detail?.cast)
+                    MetaLine(stringResource(R.string.director_label), state.detail?.director)
+                }
+                item(key = "header", contentType = "header") {
+                    if (compact) {
+                        CompactDetailHeader(s.cover, s.name) {
+                            title()
                             Spacer(Modifier.height(16.dp))
-                            s.plot?.let {
-                                Text(it, style = MaterialTheme.typography.bodyLarge, color = Palette.TextPrimary.copy(alpha = 0.9f), maxLines = 6, overflow = TextOverflow.Ellipsis)
-                                Spacer(Modifier.height(10.dp))
+                            body()
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    } else {
+                        Column {
+                            BackdropHeader(state.detail?.backdrop ?: s.cover, s.name, heroHeight)
+                            Row(Modifier.fillMaxWidth().offset(y = (-90).dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.Bottom) {
+                                if (wide) {
+                                    ArtImage(s.cover, s.name, Modifier.width(160.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)))
+                                    Spacer(Modifier.width(24.dp))
+                                }
+                                Column(Modifier.weight(1f)) { title() }
                             }
-                            MetaLine(stringResource(R.string.cast_label), state.detail?.cast)
-                            MetaLine(stringResource(R.string.director_label), state.detail?.director)
+                            Column(Modifier.offset(y = (-70).dp).padding(horizontal = 24.dp)) { body() }
                         }
                     }
                 }
+                // The tall layout pulls the list up under the hero text; the compact one has no overlap.
+                val pull = if (compact) 0.dp else 1.dp
                 if (state.seasons.size > 1) {
                     item(key = "seasons", contentType = "chips") {
                         val labels = state.seasons.map { ChipItem(it.toString(), context.getString(R.string.season_n, it)) }
-                        CategoryChips(labels, state.selectedSeason?.toString(), { vm.selectSeason(it.toInt()) }, Modifier.offset(y = (-50).dp))
+                        CategoryChips(
+                            labels, state.selectedSeason?.toString(), { vm.selectSeason(it.toInt()) },
+                            if (compact) Modifier.padding(top = 16.dp, bottom = 8.dp) else Modifier.offset(y = pull * -50),
+                            contentPadding = PaddingValues(horizontal = gutter),
+                        )
                     }
                 }
                 when {
@@ -232,7 +266,7 @@ fun SeriesDetailScreen(sourceId: Long, id: String, actions: AppActions) {
                             progress = state.progress[ep.id],
                             download = state.downloads[ep.id],
                             showDownload = !isTv,
-                            modifier = Modifier.offset(y = (-40).dp),
+                            modifier = Modifier.offset(y = pull * -40).padding(horizontal = gutter - 16.dp),
                             onPlay = {
                                 val p = state.progress[ep.id]
                                 play(ep, if (p != null && p.fraction < 0.95f) p.positionMs else 0L)
@@ -277,7 +311,9 @@ private fun EpisodeRow(
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(140.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp))) {
+        // Small phones: a narrower thumbnail leaves room for the title and plot next to it.
+        val thumb = if (LocalConfiguration.current.screenWidthDp < 400) 112.dp else 140.dp
+        Box(Modifier.width(thumb).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp))) {
             ArtImage(ep.image, ep.title, Modifier.fillMaxSize())
             if (progress != null && progress.fraction > 0f) {
                 ProgressBar(progress.fraction, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(6.dp), height = 3.dp)

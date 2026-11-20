@@ -52,6 +52,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -136,9 +138,15 @@ fun OnboardingScreen(onContinue: () -> Unit) {
             Spacer(Modifier.height(20.dp))
             var confirmed by rememberSaveable { mutableStateOf(app.prefs.disclaimerAccepted) }
             val shape = RoundedCornerShape(14.dp)
+            // TV: the checkbox and the button sit below the bottom edge of a 540 dp screen; focusing the checkbox
+            // scrolls them into view (nothing was focused, so the page looked like it had no button).
+            val isTv = com.steplayer.app.ui.theme.LocalIsTv.current
+            val checkFocus = remember { FocusRequester() }
+            if (isTv) LaunchedEffect(Unit) { runCatching { checkFocus.requestFocus() } }
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .focusRequester(checkFocus)
                     .focusHighlight(shape, 1.02f)
                     .clip(shape)
                     .clickable { confirmed = !confirmed }

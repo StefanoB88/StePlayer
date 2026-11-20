@@ -7,6 +7,7 @@ struct MovieDetailView: View {
     let id: String
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     @State private var detail: MovieDetail?
     @State private var notFound = false
@@ -16,7 +17,9 @@ struct MovieDetailView: View {
     /// The title has reached the top bar: the bar turns solid with the title.
     @State private var heroAway = false
 
-    private var wide: Bool { Theme.isTV || sizeClass == .regular }
+    /// Big iPhones in landscape are "regular" wide but only ~430 pt tall: the tall tablet header hid the title and
+    /// the play button below the fold, so they keep the phone layout.
+    private var wide: Bool { Theme.isTV || (sizeClass == .regular && verticalSizeClass != .compact) }
 
     var body: some View {
         GeometryReader { geo in
@@ -24,7 +27,8 @@ struct MovieDetailView: View {
                 if notFound {
                     EmptyState(symbol: "film", text: "Nessun film in questa categoria")
                 } else if let d = detail {
-                    content(d, topInset: geo.safeAreaInsets.top)
+                    content(d, topInset: geo.safeAreaInsets.top,
+                            compact: DetailLayout.compact(geo, sizeClass: sizeClass, verticalSizeClass: verticalSizeClass))
                 } else {
                     LoadingBox()
                 }
@@ -46,74 +50,99 @@ struct MovieDetailView: View {
         }
     }
 
-    private func content(_ d: MovieDetail, topInset: CGFloat) -> some View {
+    private func content(_ d: MovieDetail, topInset: CGFloat, compact: Bool) -> some View {
+        let m = d.movie
+        return ZStack(alignment: .top) {
+            if compact { DetailBackdropBackground(image: d.backdrop ?? m.poster, title: m.name) }
+            ScrollView {
+                if compact {
+                    // iPad in landscape: poster, title, buttons and plot start right under the top bar.
+                    CompactDetailHeader(poster: m.poster, title: m.name, topInset: topInset) {
+                        titleBlock(d, topInset: topInset)
+                        Spacer().frame(height: 16)
+                        actionsBlock(d, maxPlotWidth: .infinity)
+                    }
+                    .padding(.bottom, 24)
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        BackdropHeader(image: d.backdrop ?? m.poster, title: m.name, height: (wide ? 380 : 300) + topInset)
+                        HStack(alignment: .bottom, spacing: 24) {
+                            if wide {
+                                AspectBox(ratio: 2.0 / 3.0) { ArtImage(url: m.poster, title: m.name, points: Theme.isTV ? 360 : 270) }
+                                    .frame(width: Theme.isTV ? 240 : 180)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                            titleBlock(d, topInset: topInset)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 24)
+                        .offset(y: -120)
+
+                        actionsBlock(d, maxPlotWidth: wide ? 700 : .infinity)
+                            .padding(.horizontal, 24)
+                            .offset(y: -100)
+                    }
+                }
+            }
+            .ignoresSafeArea(edges: .top)
+        }
+    }
+
+    /// Title + meta line (year, duration, rating, container).
+    private func titleBlock(_ d: MovieDetail, topInset: CGFloat) -> some View {
+        let m = d.movie
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(m.name).font(AppFont.headlineMedium).foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .onTitleUnderTopBar(barBottom: topInset + 64) { away in
+                    if away != heroAway { heroAway = away }
+                }
+            let meta = [m.year.map { String($0.int32Value) },
+                        Fmt.minutes(seconds: d.durationSec?.intValue),
+                        AFormat.rating(m.rating?.doubleValue).map { "★ \($0)" },
+                        m.extension?.uppercased()].compactMap { $0 }.joined(separator: "   ·   ")
+            if !meta.isEmpty { Text(meta).font(AppFont.bodyMedium).foregroundStyle(Theme.textSecondary) }
+        }
+    }
+
+    /// Resume bar, play / download / favourite buttons, plot and credits.
+    private func actionsBlock(_ d: MovieDetail, maxPlotWidth: CGFloat) -> some View {
         let m = d.movie
         let canResume = (progress?.positionMs ?? 0) > 30_000 && (progress?.fraction ?? 1) < 0.95
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                BackdropHeader(image: d.backdrop ?? m.poster, title: m.name, height: (wide ? 380 : 300) + topInset)
-                HStack(alignment: .bottom, spacing: 24) {
-                    if wide {
-                        AspectBox(ratio: 2.0 / 3.0) { ArtImage(url: m.poster, title: m.name, points: Theme.isTV ? 360 : 270) }
-                            .frame(width: Theme.isTV ? 240 : 180)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(m.name).font(AppFont.headlineMedium).foregroundStyle(Theme.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .onTitleUnderTopBar(barBottom: topInset + 64) { away in
-                                if away != heroAway { heroAway = away }
-                            }
-                        let meta = [m.year.map { String($0.int32Value) },
-                                    Fmt.minutes(seconds: d.durationSec?.intValue),
-                                    AFormat.rating(m.rating?.doubleValue).map { "★ \($0)" },
-                                    m.extension?.uppercased()].compactMap { $0 }.joined(separator: "   ·   ")
-                        if !meta.isEmpty { Text(meta).font(AppFont.bodyMedium).foregroundStyle(Theme.textSecondary) }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.horizontal, 24)
-                .offset(y: -120)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    if canResume, let p = progress {
-                        ProgressBar(progress: Double(p.fraction))
-                            .frame(maxWidth: wide ? 320 : .infinity)
-                            .padding(.bottom, 12)
-                    }
-                    FlowLayout(spacing: 10, lineSpacing: 10) {
-                        if canResume, let p = progress {
-                            PrimaryButton(text: "Riprendi da \(AFormat.duration(ms: p.positionMs))", icon: "play.fill") { app.play(.movie(m)) }
-                            SecondaryButton(text: "Dall'inizio", icon: "arrow.counterclockwise") { app.play(.movie(m), fromStart: true) }
-                        } else {
-                            PrimaryButton(text: "Riproduci", icon: "play.fill") { app.play(.movie(m), fromStart: true) }
-                        }
-                        #if os(iOS)
-                        SecondaryButton(text: DownloadUI.label(download), icon: DownloadUI.icon(download), tint: DownloadUI.tint(download)) {
-                            DownloadUI.tap(download, app: app) { _ = try await app.core.downloads.downloadMovie(movie: m) }
-                        }
-                        #endif
-                        SecondaryButton(text: "", icon: isFavorite ? "heart.fill" : "heart", tint: isFavorite ? Theme.live : Theme.textPrimary) {
-                            Task { _ = try? await app.core.library.toggleFavorite(sourceId: sourceId, type: .movie, itemId: id) }
-                        }
-                        .accessibilityLabel(isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti")
-                    }
-                    Spacer().frame(height: 20)
-                    if let plot = d.plot {
-                        Text(plot).font(AppFont.bodyLarge).foregroundStyle(Theme.textPrimary.opacity(0.9))
-                            .frame(maxWidth: wide ? 700 : .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer().frame(height: 16)
-                    }
-                    MetaLine(label: "Genere", value: d.genre)
-                    MetaLine(label: "Regia", value: d.director)
-                    MetaLine(label: "Cast", value: d.cast)
-                }
-                .padding(.horizontal, 24)
-                .offset(y: -100)
+        return VStack(alignment: .leading, spacing: 0) {
+            if canResume, let p = progress {
+                ProgressBar(progress: Double(p.fraction))
+                    .frame(maxWidth: wide ? 320 : .infinity)
+                    .padding(.bottom, 12)
             }
+            FlowLayout(spacing: 10, lineSpacing: 10) {
+                if canResume, let p = progress {
+                    PrimaryButton(text: "Riprendi da \(AFormat.duration(ms: p.positionMs))", icon: "play.fill") { app.play(.movie(m)) }
+                    SecondaryButton(text: "Dall'inizio", icon: "arrow.counterclockwise") { app.play(.movie(m), fromStart: true) }
+                } else {
+                    PrimaryButton(text: "Riproduci", icon: "play.fill") { app.play(.movie(m), fromStart: true) }
+                }
+                #if os(iOS)
+                SecondaryButton(text: DownloadUI.label(download), icon: DownloadUI.icon(download), tint: DownloadUI.tint(download)) {
+                    DownloadUI.tap(download, app: app) { _ = try await app.core.downloads.downloadMovie(movie: m) }
+                }
+                #endif
+                SecondaryButton(text: "", icon: isFavorite ? "heart.fill" : "heart", tint: isFavorite ? Theme.live : Theme.textPrimary) {
+                    Task { _ = try? await app.core.library.toggleFavorite(sourceId: sourceId, type: .movie, itemId: id) }
+                }
+                .accessibilityLabel(isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti")
+            }
+            Spacer().frame(height: 20)
+            if let plot = d.plot {
+                Text(plot).font(AppFont.bodyLarge).foregroundStyle(Theme.textPrimary.opacity(0.9))
+                    .frame(maxWidth: maxPlotWidth, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer().frame(height: 16)
+            }
+            MetaLine(label: "Genere", value: d.genre)
+            MetaLine(label: "Regia", value: d.director)
+            MetaLine(label: "Cast", value: d.cast)
         }
-        .ignoresSafeArea(edges: .top)
     }
 
     private func load() async {
@@ -138,6 +167,57 @@ struct MovieDetailView: View {
 
     private func refreshProgress() async {
         progress = try? await app.core.library.progress(sourceId: sourceId, type: .movie, itemId: id)
+    }
+}
+
+/// iPad in landscape is wide but short (iPad mini 1133x744 pt, 11" 1210x834 pt, 13" 1376x1032 pt): the tall hero
+/// layout spent ~300 pt on artwork and pushed the series' season chips and episodes below the bottom edge (iPad
+/// mini) or to the very bottom with a longer plot. So iPad landscape uses the compact layout (fixed full-screen
+/// backdrop, poster + title + buttons right under the top bar), like Android TV and tablets in landscape.
+/// iPad portrait, Split View / Slide Over (compact width), iPhone and Apple TV keep their layout.
+enum DetailLayout {
+    static func compact(_ geo: GeometryProxy, sizeClass: UserInterfaceSizeClass?, verticalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        guard !Theme.isTV, sizeClass == .regular, verticalSizeClass == .regular else { return false }
+        let w = geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing
+        let h = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+        return w > h
+    }
+}
+
+/// Artwork filling the whole screen behind a compact detail page (it stays put while the page scrolls).
+struct DetailBackdropBackground: View {
+    let image: String?
+    let title: String
+    var body: some View {
+        Color.clear
+            .overlay { ArtImage(url: image, title: title, showInitials: false, maxPixel: 1400) }
+            .clipped()
+            .overlay(Theme.background.opacity(0.35))
+            .overlay(Theme.scrimLeft)
+            .overlay(Theme.scrimBottom)
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+    }
+}
+
+/// Compact detail header: poster on the left, `content` (title, meta, buttons, plot) on the right, starting right
+/// under the top bar. The text column stops at 760 pt: a plot running the full width of an iPad is hard to read.
+struct CompactDetailHeader<Content: View>: View {
+    let poster: String?
+    let title: String
+    let topInset: CGFloat
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        HStack(alignment: .top, spacing: 28) {
+            AspectBox(ratio: 2.0 / 3.0) { ArtImage(url: poster, title: title, points: 260) }
+                .frame(width: 170)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            VStack(alignment: .leading, spacing: 0, content: content)
+                .frame(maxWidth: 760, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .padding(.top, topInset + 64 + 8)
+        .padding(.horizontal, 24)
     }
 }
 

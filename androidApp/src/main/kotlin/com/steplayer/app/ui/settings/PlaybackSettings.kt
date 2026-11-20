@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -141,12 +143,22 @@ fun SubtitleSettingsScreen(actions: AppActions) {
     fun update(t: (PlayerSettings) -> PlayerSettings) = scope.launch { app.core.playerPreferences.update(t) }
     val style = settings.subtitleStyle
     val deviceLabel = stringResource(R.string.lang_device)
+    val short = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 600
 
     Column(Modifier.fillMaxSize().background(Palette.Background)) {
         AppTopBar(stringResource(R.string.settings_subtitles), onBack = actions::back)
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxWidth(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                item { SubtitlePreview(settings) }
+                // Short screens (TV, landscape): a smaller preview pinned on top, visible while changing the options below.
+                if (short) {
+                    stickyHeader(key = "preview") {
+                        Box(Modifier.fillMaxWidth().background(Palette.Background).padding(bottom = 4.dp), contentAlignment = Alignment.Center) {
+                            SubtitlePreview(settings, Modifier.height(170.dp).aspectRatio(16f / 9f))
+                        }
+                    }
+                } else {
+                    item { SubtitlePreview(settings, Modifier.fillMaxWidth().aspectRatio(16f / 9f)) }
+                }
                 item {
                     Card {
                         ChoiceRow(
@@ -204,7 +216,7 @@ fun SubtitleSettingsScreen(actions: AppActions) {
 
 /** Live preview over a neutral gradient "frame" with fictional text. */
 @Composable
-private fun SubtitlePreview(settings: PlayerSettings) {
+private fun SubtitlePreview(settings: PlayerSettings, modifier: Modifier) {
     val st = settings.subtitleStyle
     val color = if (st.color == SubtitleColor.YELLOW) Color(0xFFFFEB3B) else Color.White
     val bg = when (st.background) {
@@ -218,7 +230,7 @@ private fun SubtitlePreview(settings: PlayerSettings) {
         SubtitleEdge.SHADOW -> Shadow(Color.Black, offset = androidx.compose.ui.geometry.Offset(3f, 3f), blurRadius = 6f)
     }
     Box(
-        Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp))
+        modifier.clip(RoundedCornerShape(16.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF2B3A55), Color(0xFF5B4B8A), Color(0xFF1F6F78)))),
         contentAlignment = Alignment.BottomCenter,
     ) {
@@ -232,6 +244,7 @@ private fun SubtitlePreview(settings: PlayerSettings) {
 
 // ---------------------------------------------------------------- Connection test
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ConnectionTestScreen(sourceId: Long, actions: AppActions) {
     val app = rememberApp()
@@ -256,7 +269,8 @@ fun ConnectionTestScreen(sourceId: Long, actions: AppActions) {
     Column(Modifier.fillMaxSize().background(Palette.Background)) {
         AppTopBar(stringResource(R.string.conn_test), onBack = actions::back)
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Scrollable: the result page (verdict, gauges, buttons) is taller than a 540 dp TV screen.
+            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 when (val s = state) {
                     ConnectionTestState.Idle -> {
                         Icon(Icons.Rounded.NetworkCheck, null, tint = Palette.Accent, modifier = Modifier.size(64.dp))
@@ -299,7 +313,7 @@ fun ConnectionTestScreen(sourceId: Long, actions: AppActions) {
                         ).joinToString("   ·   ")
                         if (extra.isNotEmpty()) Text(extra, style = MaterialTheme.typography.bodyMedium, color = Palette.TextSecondary)
                         Spacer(Modifier.height(18.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (r.recommendedBuffer != settings.bufferMode) {
                                 val label = bufferLabel(r.recommendedBuffer)
                                 PrimaryButton(stringResource(R.string.conn_test_apply, label), onClick = {

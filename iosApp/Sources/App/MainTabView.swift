@@ -91,8 +91,10 @@ struct MainShellRoot: View {
 struct MainShell: View {
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
-    private var wide: Bool { Theme.isTV || sizeClass == .regular }
+    /// iPhone in landscape (compact height) also gets the side rail: a 64 pt bottom bar left room for two rows.
+    private var wide: Bool { Theme.isTV || sizeClass == .regular || verticalSizeClass == .compact }
 
     var body: some View {
         Group {
@@ -104,6 +106,8 @@ struct MainShell: View {
             } else {
                 content
                     .safeAreaInset(edge: .bottom, spacing: 0) { BottomBar() }
+                    // The keyboard (section search) covers the bar instead of lifting it over the results.
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
             }
         }
         .screenBackground()
@@ -158,27 +162,49 @@ private struct BottomBar: View {
             }
         }
         .frame(height: 64)
+        // Fixed-height bar: labels stop growing at a size that still fits five tabs (like the system tab bar).
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
         .background(Theme.surface.ignoresSafeArea(edges: .bottom))
     }
 }
 
 private struct NavRail: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    /// iPhone in landscape: only the tabs (search and settings are in every top bar), tighter, scrollable.
+    private var short: Bool { !Theme.isTV && verticalSizeClass == .compact }
 
     var body: some View {
-        VStack(spacing: 6) {
-            BrandMark(size: 44)
-            Spacer().frame(height: 16)
-            RailItem(symbol: "magnifyingglass", label: "Cerca", selected: false) { app.open(.search) }
-            ForEach(AppTab.visible, id: \.self) { tab in
-                RailItem(symbol: tab.symbol, label: tab.title, selected: tab == app.tab) { app.tab = tab }
+        Group {
+            if short {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 4) {
+                        ForEach(AppTab.visible, id: \.self) { tab in
+                            RailItem(symbol: tab.symbol, label: tab.title, selected: tab == app.tab, compact: true) { app.tab = tab }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            } else {
+                VStack(spacing: 6) {
+                    BrandMark(size: 44)
+                    Spacer().frame(height: 16)
+                    RailItem(symbol: "magnifyingglass", label: "Cerca", selected: false) { app.open(.search) }
+                    ForEach(AppTab.visible, id: \.self) { tab in
+                        RailItem(symbol: tab.symbol, label: tab.title, selected: tab == app.tab) { app.tab = tab }
+                    }
+                    Spacer(minLength: 0)
+                    RailItem(symbol: "gearshape.fill", label: "Impostazioni", selected: false) { app.open(.settings) }
+                }
+                .padding(.vertical, 16)
             }
-            Spacer(minLength: 0)
-            RailItem(symbol: "gearshape.fill", label: "Impostazioni", selected: false) { app.open(.settings) }
         }
-        .padding(.vertical, 16)
         .frame(width: Theme.isTV ? 150 : 92)
         .frame(maxHeight: .infinity)
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
         .background(Theme.surface.ignoresSafeArea())
         #if os(tvOS)
         .focusSection()
@@ -190,11 +216,12 @@ private struct RailItem: View {
     let symbol: String
     let label: String
     let selected: Bool
+    var compact = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
+            VStack(spacing: compact ? 2 : 4) {
                 Image(systemName: symbol)
                     .font(.system(size: 21, weight: .semibold))
                     .foregroundStyle(selected ? Theme.primary : Theme.textSecondary)
@@ -206,7 +233,7 @@ private struct RailItem: View {
                     .minimumScaleFactor(0.7)
             }
             .frame(width: Theme.isTV ? 130 : 76)
-            .padding(.vertical, 10)
+            .padding(.vertical, compact ? 6 : 10)
             .background(selected ? Theme.primary.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
         }

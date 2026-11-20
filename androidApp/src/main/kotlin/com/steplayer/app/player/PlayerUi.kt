@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -645,7 +647,8 @@ private fun ErrorOverlay(title: String, message: String, onRetry: () -> Unit, on
     val focus = remember { FocusRequester() }
     LaunchedEffect(message) { runCatching { focus.requestFocus() } }
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
-        Column(Modifier.padding(32.dp).widthIn(max = 460.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // Scrollable: a long message on a short screen (phone in landscape) must not push the buttons off screen.
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(32.dp).widthIn(max = 460.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Rounded.WifiOff, null, tint = Palette.Live, modifier = Modifier.size(52.dp))
             Spacer(Modifier.height(14.dp))
             Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White, textAlign = TextAlign.Center)
@@ -729,7 +732,8 @@ private fun RetryOverlay(seconds: Int, error: PlaybackError?, onCancel: () -> Un
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-        Column(Modifier.padding(32.dp).widthIn(max = 460.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // Scrollable: a long message on a short screen (phone in landscape) must not push the buttons off screen.
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(32.dp).widthIn(max = 460.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Palette.Accent, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
             Spacer(Modifier.height(16.dp))
             if (error != null) {
@@ -767,7 +771,8 @@ private fun MenuDialog(title: String, items: List<String>, onSelect: (Int) -> Un
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column {
+            // Scrollable: on a short screen the last entries were clipped and unreachable with the D-pad.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 items.forEachIndexed { i, label ->
                     val shape = RoundedCornerShape(10.dp)
                     Text(

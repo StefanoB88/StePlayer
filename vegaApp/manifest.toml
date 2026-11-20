@@ -15,6 +15,11 @@ target = "2.0"
 [[needs.module]]
 id = "/com.amazon.vega.os@IVega_1_2"
 
+# Lists and their streams are often plain http:// (most Xtream servers): without this the Vega media player refuses
+# them ("HTTP URI detected, checking cleartext policy … Invalid or insecure URI scheme").
+[network-traffic-policy.cleartext]
+allowed-domains = ["*"]
+
 [wants]
 [[wants.module]]
 id = "/com.amazon.kepler.net.net_manager@INetManager"

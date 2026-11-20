@@ -300,7 +300,7 @@ private fun RecentSearches(recent: List<String>, onPick: (String) -> Unit, onCle
 }
 
 @Composable
-private fun CorrectionBanner(corrected: String) {
+internal fun CorrectionBanner(corrected: String) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = Dimens.Gutter, vertical = 4.dp)
             .clip(RoundedCornerShape(12.dp)).background(Palette.Accent.copy(alpha = 0.12f)).padding(12.dp),
@@ -327,7 +327,7 @@ private fun LazyListScope.programSection(
 }
 
 @Composable
-private fun ProgramResult(hit: SearchHit.ProgramHit, terms: List<String>, onClick: () -> Unit) {
+internal fun ProgramResult(hit: SearchHit.ProgramHit, terms: List<String>, onClick: () -> Unit) {
     val context = LocalContext.current
     val now = System.currentTimeMillis()
     val shape = RoundedCornerShape(14.dp)

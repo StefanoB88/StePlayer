@@ -20,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.steplayer.app.R
+import com.steplayer.app.ui.theme.LocalIsTv
 
 @Composable
 fun AppTopBar(
@@ -34,7 +35,8 @@ fun AppTopBar(
             .fillMaxWidth()
             .statusBarsPadding()
             .height(64.dp)
-            .padding(horizontal = 8.dp),
+            // TV: the last action (guide, search field) stays clear of the right edge and of overscan.
+            .padding(horizontal = if (LocalIsTv.current) 16.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {

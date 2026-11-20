@@ -34,6 +34,10 @@ export function PlayerScreen({ req }: { req: PlayRequest }) {
   const [now, setNow] = useState<EpgProgram | null>(null);
   const [digits, setDigits] = useState('');
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A stream that never starts (and never fails, e.g. refused by the platform) would leave "Caricamento…" forever:
+  // after 25 s show the error with "Riprova", like the Samsung/LG app.
+  const startTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearStartTimer = () => { if (startTimer.current) { clearTimeout(startTimer.current); startTimer.current = null; } };
   const zapper = useRef<ChannelZapper | null>(req.kind === 'live' ? core.createZapper(req.list, req.channel) : null);
   const retry = useRef(core.playback.retryPolicy(req.kind === 'live'));
   const token = useRef(0);
@@ -81,6 +85,12 @@ export function PlayerScreen({ req }: { req: PlayRequest }) {
         if (p && p.positionMs > 30_000 && !(p.durationMs > 0 && p.positionMs / p.durationMs >= 0.95)) startMs = p.positionMs;
       }
       if (surface.current) engine.current.attachSurface(surface.current);
+      clearStartTimer();
+      startTimer.current = setTimeout(() => {
+        if (t !== token.current) return;
+        setBuffering(false);
+        setError({ ...core.playback.errors.timeout(), message: 'Il contenuto non parte. Controlla la connessione o riprova più tardi.' });
+      }, 25_000);
       await engine.current.open({ url: stream.url, isLive: stream.isLive, container: stream.container, startMs });
       if (r.kind === 'live') {
         const c = r.channel;
@@ -97,7 +107,7 @@ export function PlayerScreen({ req }: { req: PlayRequest }) {
   useEffect(() => {
     const e = engine.current;
     const offs = [
-      e.on('playing', () => { setPlaying(true); setBuffering(false); retry.current.reset(); devLog(`player: playing (${e.mode})`); }),
+      e.on('playing', () => { clearStartTimer(); setPlaying(true); setBuffering(false); retry.current.reset(); devLog(`player: playing (${e.mode})`); }),
       e.on('pause', () => setPlaying(false)),
       e.on('waiting', () => setBuffering(true)),
       e.on('timeupdate', () => {
@@ -106,6 +116,7 @@ export function PlayerScreen({ req }: { req: PlayRequest }) {
       }),
       e.on('ended', () => { saveProgress(true); if (!isLive) nav.pop(); }),
       e.on('error', async () => {
+        clearStartTimer();
         const t = token.current;
         const err = core.playback.errors.network();
         const delay = retry.current.nextDelayMs(err);
@@ -122,7 +133,7 @@ export function PlayerScreen({ req }: { req: PlayRequest }) {
   useEffect(() => {
     armHide();
     const e = engine.current;
-    return () => { saveProgress(); token.current++; e.release(); if (hideTimer.current) clearTimeout(hideTimer.current); };
+    return () => { saveProgress(); token.current++; clearStartTimer(); e.release(); if (hideTimer.current) clearTimeout(hideTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -220,7 +231,7 @@ export function PlayerScreen({ req }: { req: PlayRequest }) {
               now ? (
                 <>
                   <View style={styles.rowBetween}>
-                    <Text style={F.title}><Text style={styles.liveBadge}> LIVE </Text>  {now.title}</Text>
+                    <Text style={[F.title, { flex: 1, marginRight: 16 }]} numberOfLines={1}><Text style={styles.liveBadge}> LIVE </Text>  {now.title}</Text>
                     <Text style={F.body2}>{clock(now.startAt)} – {clock(now.endAt)}</Text>
                   </View>
                   <ProgressBar value={progressNow} style={{ marginTop: 8 }} />
@@ -246,17 +257,19 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   video: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, zIndex: 0 },
   center: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  spinner: { color: C.gold, fontSize: 14 },
-  top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: S.margin, paddingTop: 20, paddingBottom: 30, backgroundColor: 'rgba(0,0,0,0.45)' },
+  spinner: { color: C.gold, fontSize: 14, marginTop: 110 }, // below the Play button, never on top of it
+  // Top and bottom bars ≥ 27 dp (5 %) from the screen edges: overscan-safe.
+  top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: S.margin, paddingTop: 28, paddingBottom: 30, backgroundColor: 'rgba(0,0,0,0.45)' },
   back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12, borderWidth: 2, borderColor: 'transparent' },
   backText: { color: C.text, fontSize: 22 },
   centerRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  round: { width: 64, marginHorizontal: 16 },
-  play: { width: 110 },
-  bottom: { paddingHorizontal: S.margin, paddingBottom: 22, paddingTop: 30, backgroundColor: 'rgba(0,0,0,0.45)' },
+  // minWidth, not width: with a fixed 64 dp the button padding left no room and "−10" broke onto three lines.
+  round: { minWidth: 84, paddingHorizontal: 16, marginHorizontal: 16 },
+  play: { minWidth: 120 },
+  bottom: { paddingHorizontal: S.margin, paddingBottom: 28, paddingTop: 30, backgroundColor: 'rgba(0,0,0,0.45)' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   liveBadge: { backgroundColor: C.live, color: '#fff', fontSize: 11, fontWeight: '800' },
   errorBox: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: C.scrim, padding: 40 },
-  digits: { position: 'absolute', right: S.margin, top: 24, backgroundColor: C.scrim, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
+  digits: { position: 'absolute', right: S.margin, top: 28, backgroundColor: C.scrim, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
   digitsText: { color: C.gold, fontSize: 30, fontWeight: '800' },
 });

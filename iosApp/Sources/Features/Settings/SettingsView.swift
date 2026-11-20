@@ -231,11 +231,16 @@ struct ChoiceRow<T: Equatable>: View {
                     let (value, label) = options[i]
                     let sel = value == selected
                     Button { onSelect(value) } label: {
+                        // Long labels ("Automatici (se l'audio è in un'altra lingua)") wrap instead of being cut on phones.
                         Text(label).font(AppFont.labelLarge).foregroundStyle(sel ? Theme.onAccent : Theme.textSecondary)
-                            .lineLimit(1)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
                             .padding(.horizontal, 14).padding(.vertical, 8)
-                            .background { if sel { Capsule().fill(Theme.accentGradient) } else { Capsule().fill(Theme.surfaceElevated) } }
-                            .contentShape(Capsule())
+                            .background {
+                                let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                if sel { shape.fill(Theme.accentGradient) } else { shape.fill(Theme.surfaceElevated) }
+                            }
+                            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                     .buttonStyle(PressStyle(radius: 40, scale: 1.04))
                     .accessibilityAddTraits(sel ? .isSelected : [])
@@ -304,6 +309,9 @@ struct CategoryVisibilityView: View {
                     }
                 }
                 .padding(16)
+                // Same 760 pt column as the settings page: on an iPad in landscape the switches stay next to the names.
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity)
             }
         }
         .task {

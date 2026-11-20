@@ -77,29 +77,85 @@ final class LiveModel {
 struct LiveView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var model = LiveModel()
+    @State private var search = SectionSearchModel()
 
     private var railWidth: CGFloat { Theme.isTV ? 300 : (sizeClass == .regular ? 210 : 128) }
+    /// Wide screens (TV, iPad, iPhone in landscape) keep the search field in the top bar; phones in portrait get a
+    /// row under it.
+    private var inlineSearch: Bool { Theme.isTV || sizeClass == .regular || verticalSizeClass == .compact }
 
     var body: some View {
         VStack(spacing: 0) {
             AppTopBar(title: "Live", large: true) {
+                if inlineSearch { searchField.frame(width: Theme.isTV ? 520 : 280).padding(.trailing, 4) }
                 RoundIconButton(symbol: "calendar", label: "Guida TV") {
                     if model.sourceId >= 0, let cat = model.selected { app.open(.guide(sourceId: model.sourceId, categoryId: cat)) }
                 }
                 SearchSettingsActions()
             }
-            // Live only: categories in a vertical column on the left, channels on the right.
-            HStack(spacing: 0) {
-                CategoryRail(items: model.categories, selected: model.selected) { model.select($0) }
-                    .frame(width: railWidth)
-                channelList
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if !inlineSearch {
+                searchField.padding(.horizontal, Theme.gutter).padding(.bottom, 8)
+            }
+            if search.isActive {
+                // Channels only (plus programmes on air now, which open their channel): replaces rail and list.
+                SectionSearchState(scope: .live, model: search) { r in searchResults(r) }
+            } else {
+                // Live only: categories in a vertical column on the left, channels on the right.
+                HStack(spacing: 0) {
+                    CategoryRail(items: model.categories, selected: model.selected) { model.select($0) }
+                        .frame(width: railWidth)
+                    channelList
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
         .screenBackground()
+        .task(id: search.query) { await search.run(app) }
+        #if os(tvOS)
+        // Menu with an active search clears it first (back to the selected category).
+        .onExitCommand(perform: search.isActive ? { search.clear() } : nil)
+        #endif
         .onAppear { model.bind(app.core, sourceId: app.activeId) }
         .onChange(of: app.activeId) { _, id in model.bind(app.core, sourceId: id) }
+    }
+
+    private var searchField: some View {
+        SectionSearchField(prompt: SearchScope.live.prompt, text: $search.query) { search.remember(app) }
+    }
+
+    private func searchResults(_ r: SmartSearchResults) -> some View {
+        let terms = r.terms
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if let corrected = r.correctedQuery { CorrectedQueryBanner(corrected: corrected) }
+                if !r.channels.isEmpty {
+                    SectionHeader(title: "Canali")
+                    ForEach(r.channels, id: \.channel.id) { hit in
+                        ResultRow(logo: hit.channel.logo, name: hit.channel.name, action: { openChannel(hit.channel) }) {
+                            SearchHighlight.text(hit.channel.name, terms: terms).font(AppFont.titleSmall).lineLimit(1)
+                        }
+                    }
+                }
+                if !r.liveNow.isEmpty {
+                    SectionHeader(title: "In onda ora")
+                    ForEach(Array(r.liveNow.enumerated()), id: \.offset) { _, hit in
+                        ProgramHitRow(hit: hit, terms: terms) { openChannel(hit.channel) }
+                    }
+                }
+            }
+            .padding(.bottom, 16)
+        }
+        .scrollDismissesKeyboard(.immediately)
+        #if os(tvOS)
+        .focusSection()
+        #endif
+    }
+
+    private func openChannel(_ ch: Channel) {
+        search.remember(app)
+        app.playChannel(ch, categoryId: ch.categoryId)
     }
 
     @ViewBuilder private var channelList: some View {
@@ -191,17 +247,21 @@ struct ChannelRow: View, Equatable {
     let favorite: Bool
     let onClick: () -> Void
     let onLongClick: () -> Void
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     static func == (a: ChannelRow, b: ChannelRow) -> Bool { a.item == b.item && a.favorite == b.favorite }
 
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 12) {
-                ArtImage(url: item.logo, title: item.name, contentMode: .fit, points: 64)
-                    .padding(6)
-                    .frame(width: 76, height: 52)
-                    .background(Theme.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                // Accessibility text sizes on a phone: the names need the logo's width more than the logo.
+                if !typeSize.isAccessibilitySize {
+                    ArtImage(url: item.logo, title: item.name, contentMode: .fit, points: 64)
+                        .padding(6)
+                        .frame(width: 76, height: 52)
+                        .background(Theme.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
                         if let num = item.num {

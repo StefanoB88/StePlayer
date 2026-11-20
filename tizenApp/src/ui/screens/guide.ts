@@ -12,7 +12,7 @@ import { actions } from '../actions.ts';
 
 const PER_MIN = 12; // px per minute (6 dp)
 const ROW_H = 136; // 68 dp
-const CH_COL = 312; // 150 dp column + 12 px margins (= .g-ch width + margins)
+const CH_COL = 348; // .g-ch width + margins (48 px on the left: overscan-safe)
 const VIEW_W = 1920 - CH_COL;
 const HALF_HOUR = 30 * 60_000;
 
@@ -35,8 +35,8 @@ export function guideScreen(sourceId: number, categoryId: string): Screen {
   const top = h('div', { class: 'topbar' }, back, h('div', { class: 'title t-title-l' }, 'Guida TV'));
   const topZone = new ElementsZone(top);
   const rulerTrack = h('div', { style: `position:absolute;left:0;top:0;height:72px;width:${totalW}px` });
-  const ruler = h('div', { style: `position:absolute;left:${CH_COL}px;right:0;top:128px;height:72px;overflow:hidden` }, rulerTrack);
-  const host = h('div', { style: 'position:absolute;left:0;right:0;top:200px;bottom:0' });
+  const ruler = h('div', { style: `position:absolute;left:${CH_COL}px;right:0;top:152px;height:72px;overflow:hidden` }, rulerTrack);
+  const host = h('div', { style: 'position:absolute;left:0;right:0;top:224px;bottom:0' });
   const el = h('div', { class: 'screen' }, top, ruler, host);
   host.appendChild(loadingBox());
 
@@ -96,7 +96,8 @@ export function guideScreen(sourceId: number, categoryId: string): Screen {
     const x = xOf(Math.max(p.startAt, from));
     const w = xOf(p.endAt) - x;
     if (x < scrollX + 40) scrollX = Math.max(0, x - 40);
-    else if (x + Math.min(w, VIEW_W - 200) > scrollX + VIEW_W - 40) scrollX = Math.min(totalW - VIEW_W, x + Math.min(w, VIEW_W - 200) - VIEW_W + 40);
+    // 80 px from the right edge of the screen: the focused programme stays inside the overscan-safe area.
+    else if (x + Math.min(w, VIEW_W - 200) > scrollX + VIEW_W - 80) scrollX = Math.min(totalW - VIEW_W, x + Math.min(w, VIEW_W - 200) - VIEW_W + 80);
     rulerTrack.style.transform = `translateX(${-scrollX}px)`;
     (rulerTrack.style as unknown as Record<string, string>).webkitTransform = `translateX(${-scrollX}px)`;
   }

@@ -31,15 +31,19 @@ struct GuideView: View {
             } else if rows.isEmpty {
                 EmptyState(symbol: "calendar", text: "Nessun canale in questa categoria")
             } else {
-                GuideRuler(metrics: metrics, scroll: scroll)
-                HStack(alignment: .top, spacing: 0) {
-                    GuideChannelColumn(rows: rows, metrics: metrics, scroll: scroll) { ch in
-                        app.playChannel(ch, categoryId: categoryId, list: rows.map(\.channel))
-                    }
-                    GuideProgramGrid(rows: rows, metrics: metrics, scroll: scroll) { slot, ch in
-                        tap(slot.program, on: ch)
+                // Fixed-height rows: the text stops growing where two lines still fit (larger sizes were cut off).
+                VStack(spacing: 0) {
+                    GuideRuler(metrics: metrics, scroll: scroll)
+                    HStack(alignment: .top, spacing: 0) {
+                        GuideChannelColumn(rows: rows, metrics: metrics, scroll: scroll) { ch in
+                            app.playChannel(ch, categoryId: categoryId, list: rows.map(\.channel))
+                        }
+                        GuideProgramGrid(rows: rows, metrics: metrics, scroll: scroll) { slot, ch in
+                            tap(slot.program, on: ch)
+                        }
                     }
                 }
+                .dynamicTypeSize(...DynamicTypeSize.xLarge)
             }
         }
         .task { await load() }

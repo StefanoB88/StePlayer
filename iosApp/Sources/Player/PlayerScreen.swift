@@ -200,6 +200,15 @@ private struct IOSPlayerContent: View {
             guard env["STEPLAYER_DEMO_CONTROLS"] == "1" || env["STEPLAYER_DEMO_ZAP"] == "1" else { return }
             try? await Task.sleep(for: .seconds(6))
             if env["STEPLAYER_DEMO_ZAP"] == "1" { vm.zap(1) } else { demoPinned = true; poke() }
+            // STEPLAYER_DEMO_SHEET=menu|text|sleep|speed|aspect (with STEPLAYER_DEMO_CONTROLS=1): opens that dialog.
+            switch env["STEPLAYER_DEMO_SHEET"] {
+            case "menu": open(.menu)
+            case "text": open(.text)
+            case "sleep": open(.sleep)
+            case "speed": open(.speed)
+            case "aspect": open(.aspect)
+            default: break
+            }
         }
         #endif
         .onChange(of: speed) { _, _ in applyVideoSettings() }
@@ -255,20 +264,53 @@ private struct IOSPlayerContent: View {
             }
             centre
         }
+        // Over the video in landscape: past this size the title, transport and programme lines collide.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
+    /// Title on the left, actions on the right. With many actions (live: last channel, list; audio, subtitles,
+    /// format, options, speed, PiP, AirPlay) on a narrow screen the row didn't fit and the title covered the
+    /// actions: now the title shrinks first (ellipsis) and, if even that isn't enough, the actions move to a second
+    /// row under the title.
     private var topBar: some View {
-        HStack(spacing: 0) {
-            RoundIconButton(symbol: "arrow.left", label: "Indietro", tint: .white, action: close)
-            Spacer().frame(width: 8)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(vm.title).font(AppFont.titleLarge).foregroundStyle(.white).lineLimit(1)
-                let sub = vm.isLive ? vm.nowProgram?.title : vm.subtitle
-                if let sub, !sub.isEmpty {
-                    Text(sub).font(AppFont.bodyMedium).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) {
+                RoundIconButton(symbol: "arrow.left", label: "Indietro", tint: .white, action: close)
+                Spacer().frame(width: 8)
+                // Ideal width 160: the row "fits" as long as the actions and a short title do; the title then takes
+                // whatever space is left and truncates.
+                titleBlock.frame(minWidth: 0, idealWidth: 160, maxWidth: .infinity, alignment: .leading)
+                Spacer().frame(width: 8)
+                topActions
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 0) {
+                    RoundIconButton(symbol: "arrow.left", label: "Indietro", tint: .white, action: close)
+                    Spacer().frame(width: 8)
+                    titleBlock.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    topActions
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(vm.title).font(AppFont.titleLarge).foregroundStyle(.white).lineLimit(1)
+            let sub = vm.isLive ? vm.nowProgram?.title : vm.subtitle
+            if let sub, !sub.isEmpty {
+                Text(sub).font(AppFont.bodyMedium).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+            }
+        }
+    }
+
+    /// The action icons, never compressed (fixed size): only the title gives way.
+    private var topActions: some View {
+        HStack(spacing: 0) {
             if vm.isLive && vm.lastChannelName != nil {
                 RoundIconButton(symbol: "clock.arrow.circlepath", label: "Ultimo canale", tint: .white) { vm.back(); poke() }
             }
@@ -296,7 +338,7 @@ private struct IOSPlayerContent: View {
             }
             AirPlayButton().frame(width: 44, height: 44).accessibilityLabel("AirPlay")
         }
-        .padding(.horizontal, 16).padding(.vertical, 14)
+        .fixedSize()
     }
 
     private var centre: some View {

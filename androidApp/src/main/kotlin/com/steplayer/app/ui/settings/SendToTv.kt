@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -89,8 +90,9 @@ fun SendToTvScreen(actions: AppActions) {
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
             list.isEmpty() -> EmptyState(Icons.Rounded.ErrorOutline, stringResource(R.string.send_tv_no_lists))
-            else -> Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp).navigationBarsPadding(),
+            // Centred 760 dp column like the settings page (a landscape tablet is ~1280 dp wide).
+            else -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) { Column(
+                Modifier.widthIn(max = 760.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).navigationBarsPadding(),
             ) {
                 Text(stringResource(R.string.send_tv_step1), style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.height(10.dp))
@@ -169,7 +171,7 @@ fun SendToTvScreen(actions: AppActions) {
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(stringResource(R.string.send_tv_privacy), style = MaterialTheme.typography.bodySmall, color = Palette.TextSecondary)
-            }
+            } }
         }
     }
 }

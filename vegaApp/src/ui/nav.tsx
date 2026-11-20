@@ -25,6 +25,20 @@ const TopContext = createContext(true);
 /** True while this screen is the visible one (refresh data / restart timers when it comes back). */
 export const useIsTop = (): boolean => useContext(TopContext);
 
+/** Back inside a section of the main screen (e.g. empty its search) before the shell handles it. */
+export const SectionBackContext = createContext<{ current: (() => boolean) | null } | null>(null);
+
+/** Registers the section's Back handler (return true when handled) while the section is mounted. */
+export function useSectionBack(fn: () => boolean, deps: unknown[]): void {
+  const ref = useContext(SectionBackContext);
+  useEffect(() => {
+    if (!ref) return undefined;
+    ref.current = fn;
+    return () => { if (ref.current === fn) ref.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
+
 const styles = StyleSheet.create({ hidden: { display: 'none' } });
 
 let seq = 0;

@@ -1,6 +1,6 @@
 // Focusable building blocks for the remote: focused = gold ring + slight scale, like the Samsung/LG/Android TV apps.
-import React, { useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
 import { C, F, S } from './theme';
 import { devLog } from '../devlog';
 
@@ -14,10 +14,12 @@ interface FocusProps {
   focusedStyle?: StyleProp<ViewStyle>;
   children: (focused: boolean) => React.ReactNode;
   testID?: string;
+  /** Full-width row: a smaller scale keeps the ring inside the overscan-safe margin. */
+  wide?: boolean;
 }
 
 /** Base focusable: renders its children with the focus state. */
-export function Focusable({ onPress, onLongPress, onFocus, preferred, disabled, style, focusedStyle, children, testID }: FocusProps) {
+export function Focusable({ onPress, onLongPress, onFocus, preferred, disabled, style, focusedStyle, children, testID, wide }: FocusProps) {
   const [focused, setFocused] = useState(false);
   return (
     <TouchableOpacity
@@ -28,7 +30,7 @@ export function Focusable({ onPress, onLongPress, onFocus, preferred, disabled, 
       onLongPress={onLongPress}
       onFocus={() => { setFocused(true); onFocus?.(); if (testID) devLog(`ui: focus ${testID}`); }}
       onBlur={() => setFocused(false)}
-      style={[style, focused && styles.focusRing, focused && focusedStyle]}
+      style={[style, focused && styles.focusRing, focused && wide && styles.focusWide, focused && focusedStyle]}
       testID={testID}
     >
       {children(focused)}
@@ -47,11 +49,29 @@ export function Button({ label, onPress, primary, preferred, disabled, style }: 
   );
 }
 
-export function Chip({ label, selected, onPress, onFocus, preferred }: { label: string; selected: boolean; onPress: () => void; onFocus?: () => void; preferred?: boolean }) {
+export interface ChipItem { key: string; label: string; selected: boolean; onPress: () => void; onFocus?: () => void; preferred?: boolean }
+
+export function Chip({ label, selected, onPress, onFocus, preferred }: Omit<ChipItem, 'key'>) {
   return (
     <Focusable onPress={onPress} onFocus={onFocus} preferred={preferred} testID={`chip:${label}`} style={[styles.chip, selected && styles.chipSelected]}>
       {() => <Text style={[styles.chipText, selected && styles.chipTextSelected]} numberOfLines={1}>{label}</Text>}
     </Focusable>
+  );
+}
+
+/** Horizontal chip row: the focused chip is scrolled to sit ~1/4 from the left, never against the screen edge. */
+export function ChipStrip({ items, style }: { items: ChipItem[]; style?: StyleProp<ViewStyle> }) {
+  const scroll = useRef<ScrollView>(null);
+  const xs = useRef<Record<string, number>>({});
+  return (
+    <ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={[styles.chipStrip, style]} contentContainerStyle={styles.chipStripContent}>
+      {items.map((it) => (
+        <View key={it.key} onLayout={(e) => { xs.current[it.key] = e.nativeEvent.layout.x; }}>
+          <Chip label={it.label} selected={it.selected} onPress={it.onPress} preferred={it.preferred}
+            onFocus={() => { scroll.current?.scrollTo({ x: Math.max(0, (xs.current[it.key] ?? 0) - 200), animated: true }); it.onFocus?.(); }} />
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -111,14 +131,15 @@ export function Empty({ title, message }: { title: string; message?: string }) {
   );
 }
 
-/** Labelled text field; OK opens the TV keyboard. */
-export function Field({ label, value, onChange, secure, placeholder, preferred }: {
-  label: string; value: string; onChange: (v: string) => void; secure?: boolean; placeholder?: string; preferred?: boolean;
+/** Labelled text field (no label: search bar); OK opens the TV keyboard. */
+export function Field({ label, value, onChange, secure, placeholder, preferred, style }: {
+  label?: string; value: string; onChange: (v: string) => void; secure?: boolean; placeholder?: string; preferred?: boolean;
+  style?: StyleProp<ViewStyle>;
 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={F.label}>{label}</Text>
+    <View style={[styles.fieldWrap, style]}>
+      {label ? <Text style={F.label}>{label}</Text> : null}
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -128,9 +149,9 @@ export function Field({ label, value, onChange, secure, placeholder, preferred }
         autoCapitalize="none"
         autoCorrect={false}
         hasTVPreferredFocus={preferred}
-        onFocus={() => { setFocused(true); devLog(`ui: field focus ${label}`); }}
+        onFocus={() => { setFocused(true); devLog(`ui: field focus ${label || placeholder}`); }}
         onBlur={() => setFocused(false)}
-        style={[styles.field, focused && styles.fieldFocused]}
+        style={[styles.field, !label && styles.fieldBare, focused && styles.fieldFocused]}
       />
     </View>
   );
@@ -138,6 +159,7 @@ export function Field({ label, value, onChange, secure, placeholder, preferred }
 
 const styles = StyleSheet.create({
   focusRing: { borderColor: C.gold, borderWidth: 2, transform: [{ scale: 1.04 }] },
+  focusWide: { transform: [{ scale: 1.01 }] },
   button: { height: 40, paddingHorizontal: 22, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
   buttonPrimary: { backgroundColor: C.accent },
   buttonSecondary: { backgroundColor: C.elevated },
@@ -145,8 +167,10 @@ const styles = StyleSheet.create({
   buttonTextPrimary: { color: '#1A1205' },
   buttonTextFocused: { color: C.gold },
   disabled: { opacity: 0.4 },
-  chip: { height: 30, paddingHorizontal: 14, borderRadius: 15, backgroundColor: C.elevated, justifyContent: 'center', marginRight: 8, borderWidth: 2, borderColor: 'transparent' },
+  chip: { height: 30, maxWidth: 260, paddingHorizontal: 14, borderRadius: 15, backgroundColor: C.elevated, justifyContent: 'center', marginRight: 8, borderWidth: 2, borderColor: 'transparent' },
   chipSelected: { backgroundColor: C.accent },
+  chipStrip: { flexGrow: 0, height: 44 }, // chip 30 + focus scale and ring: without a fixed height Vega clips the bottom
+  chipStripContent: { paddingHorizontal: S.margin, alignItems: 'center' },
   chipText: { color: C.text2, fontSize: 12, fontWeight: '600' },
   chipTextSelected: { color: '#1A1205' },
   art: { backgroundColor: C.elevated, borderRadius: 8, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
@@ -159,6 +183,7 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', backgroundColor: C.accent },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: S.margin },
   fieldWrap: { marginBottom: 10 },
-  field: { height: 40, borderRadius: 10, backgroundColor: C.surface, color: C.text, paddingHorizontal: 14, fontSize: 14, marginTop: 4, borderWidth: 2, borderColor: C.elevated },
+  field: { height: 40, borderRadius: 10, backgroundColor: C.surface, color: C.text, paddingHorizontal: 14, paddingVertical: 0, textAlignVertical: 'center', fontSize: 14, marginTop: 4, borderWidth: 2, borderColor: C.elevated },
+  fieldBare: { marginTop: 0, borderRadius: 20 },
   fieldFocused: { borderColor: C.gold },
 });

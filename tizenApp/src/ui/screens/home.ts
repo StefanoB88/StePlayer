@@ -44,13 +44,13 @@ export function homeTab(switchTab: (t: TabId) => void): Tab {
 
   function rowZone(row: HTMLElement, section: HTMLElement): ElementsZone {
     return new ElementsZone(row, {
-      only: 'x', scroller: row, axis: 'x', pad: 32,
+      only: 'x', scroller: row, axis: 'x', pad: 64,
       onFocus: () => ensureVisible(section, scroller, 'y', 0),
     });
   }
 
   function topBar(transparent: boolean): { el: HTMLElement; zone: ElementsZone } {
-    const bar = h('div', { class: 'topbar', style: `position:${transparent ? 'absolute' : 'relative'};left:0;right:0;top:0;padding:0 24px;${transparent ? 'background:linear-gradient(rgba(0,0,0,0.55),transparent);' : ''}z-index:3` },
+    const bar = h('div', { class: 'topbar', style: `position:${transparent ? 'absolute' : 'relative'};left:0;right:0;top:0;padding:24px 56px 0 24px;${transparent ? 'background:linear-gradient(rgba(0,0,0,0.55),transparent);' : ''}z-index:3` },
       h('div', { class: 't-title-l', style: 'margin-left:8px' }, 'StePlayer'), h('div', { class: 'grow' }));
     if (session.sources.length > 1 && session.source) {
       bar.appendChild(secondaryButton(session.source.name, () => {
@@ -142,7 +142,7 @@ export function homeTab(switchTab: (t: TabId) => void): Tab {
     const color = n.expired ? 'var(--live)' : 'var(--warning)';
     const bg = n.expired ? 'rgba(255,59,92,0.14)' : 'rgba(255,176,32,0.14)';
     const close = iconButton('close', 'Chiudi', () => { dismissed.push(`${n.sourceId}:${n.daysLeft}:${n.expired}`); load(); }, { tint: 'var(--text2)' });
-    const row = h('div', { class: 'row', style: `margin:16px 32px;border-radius:28px;background:${bg};padding:12px 8px 12px 28px` },
+    const row = h('div', { class: 'row', style: `margin:16px 56px 16px 32px;border-radius:28px;background:${bg};padding:12px 8px 12px 28px` },
       h('span', { style: `color:${color};margin-right:24px` }, icon('info', 40)),
       h('div', { class: 'grow' }, h('div', { class: 't-label-l', style: `color:${color}` }, n.sourceName), h('div', { class: 't-body-m' }, n.message)),
       close);
@@ -154,7 +154,7 @@ export function homeTab(switchTab: (t: TabId) => void): Tab {
     const header = h('div', { class: 'row' }, sectionTitle(titleText));
     if (onMore) {
       header.appendChild(h('div', { class: 'grow' }));
-      header.appendChild(h('div', { class: 't-headline-s c2', style: 'padding:0 48px' }, '›'));
+      header.appendChild(h('div', { class: 't-headline-s c2', style: 'padding:0 64px' }, '›'));
     }
     const sec = h('div', {}, header, row);
     return { el: sec, zone: rowZone(row, sec) };
@@ -188,7 +188,7 @@ export function homeTab(switchTab: (t: TabId) => void): Tab {
     const nz: Zone[] = [];
     const wrap = h('div', { style: 'position:relative' });
     content.appendChild(wrap);
-    if (heroItems.length) { const hr = hero(heroItems); wrap.appendChild(hr.el); nz.push(hr.zone); } else { wrap.appendChild(h('div', { style: 'height:128px' })); }
+    if (heroItems.length) { const hr = hero(heroItems); wrap.appendChild(hr.el); nz.push(hr.zone); } else { wrap.appendChild(h('div', { style: 'height:152px' })); }
     const tb = topBar(true);
     wrap.appendChild(tb.el);
     nz.unshift(tb.zone);
@@ -248,7 +248,7 @@ export function homeTab(switchTab: (t: TabId) => void): Tab {
     const tb = topBar(false);
     const action = primaryButton('Impostazioni', () => actions.openSettings());
     const empty = emptyState('video_library', 'La libreria è vuota. Sincronizza la lista dalle impostazioni.', action);
-    empty.style.top = '128px';
+    empty.style.top = '152px';
     content.append(tb.el, empty);
     zones = [tb.zone, new ElementsZone(empty)];
     shell()?.refreshZones();

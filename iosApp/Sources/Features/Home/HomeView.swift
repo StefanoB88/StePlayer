@@ -92,7 +92,7 @@ struct HomeView: View {
                         }
                     }
                 } else {
-                    content(topInset: topInset)
+                    content(topInset: topInset, viewport: geo.size.height)
                 }
             }
         }
@@ -101,14 +101,14 @@ struct HomeView: View {
         .onChange(of: app.activeId) { _, id in model.bind(app.core, sourceId: id) }
     }
 
-    private func content(topInset rawInset: CGFloat) -> some View {
+    private func content(topInset rawInset: CGFloat, viewport: CGFloat) -> some View {
         // With a hero the scroll view runs under the status bar (Android edge-to-edge); without, it respects it.
         let topInset = model.hero.isEmpty ? 0 : rawInset
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .top) {
                     if !model.hero.isEmpty {
-                        HeroCarousel(items: model.hero, wide: wide, topInset: topInset)
+                        HeroCarousel(items: model.hero, wide: wide, topInset: topInset, viewport: viewport)
                     } else {
                         Color.clear.frame(height: 64 + topInset)
                     }
@@ -228,11 +228,24 @@ private struct HomeTopBar: View {
     let refresh: () -> Void
 
     var body: some View {
+        // Large text on a small phone: "Aggiorna" becomes icon-only and the name may shrink, so search and
+        // settings never slide off screen.
+        ViewThatFits(in: .horizontal) {
+            bar(compactRefresh: app.sources.count > 1 && !Theme.isTV && sizeClass == .compact, fixedTitle: true)
+            bar(compactRefresh: true, fixedTitle: false)
+        }
+        .frame(height: 64)
+        .padding(.horizontal, 12)
+    }
+
+    private func bar(compactRefresh: Bool, fixedTitle: Bool) -> some View {
         HStack(spacing: 4) {
             Text("StePlayer")
                 .font(AppFont.titleLarge)
                 .foregroundStyle(Theme.textPrimary)
-                .fixedSize()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .fixedSize(horizontal: fixedTitle, vertical: false)
                 .padding(.leading, 4)
             Spacer(minLength: 8)
             if app.sources.count > 1 {
@@ -254,13 +267,10 @@ private struct HomeTopBar: View {
             }
             if app.activeId >= 0 {
                 // Phone width with the list switcher too: icon only, or the switcher shrank to one letter.
-                RefreshPill(refreshing: app.isSyncing, compact: app.sources.count > 1 && !Theme.isTV && sizeClass == .compact,
-                            action: refresh)
+                RefreshPill(refreshing: app.isSyncing, compact: compactRefresh, action: refresh)
             }
             SearchSettingsActions()
         }
-        .frame(height: 64)
-        .padding(.horizontal, 12)
     }
 
     private func switchSource(_ id: Int64) {
@@ -316,11 +326,62 @@ private struct HeroCarousel: View {
     let items: [HeroItem]
     let wide: Bool
     let topInset: CGFloat
+    /// Height of the visible area: in landscape on iPhone a 480 pt hero hid its own title and buttons.
+    var viewport: CGFloat = 0
     @State private var index = 0
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    private var height: CGFloat {
+        let base: CGFloat = wide ? 420 : 480
+        return viewport > 0 ? min(base, max(300, viewport * 0.85)) : base
+    }
 
     var body: some View {
         let item = items[min(index, items.count - 1)]
-        ZStack(alignment: .bottomLeading) {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(item.title)
+                .font(AppFont.displaySmall)
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(typeSize.isAccessibilitySize ? 3 : 2)
+            if let sub = item.subtitle, !sub.isEmpty {
+                Spacer().frame(height: 6)
+                Text(sub).font(AppFont.bodyMedium).foregroundStyle(Theme.textSecondary)
+            }
+            Spacer().frame(height: 16)
+            // Wraps onto two rows when the buttons don't fit side by side (small phone, large text).
+            FlowLayout(spacing: 10, lineSpacing: 10) {
+                if item.isSeries {
+                    // A series has nothing to "play" as a whole: one button, straight to the episodes.
+                    PrimaryButton(text: "Episodi", icon: "list.bullet") {
+                        app.open(.series(sourceId: item.sourceId, id: item.itemId))
+                    }
+                } else {
+                    PrimaryButton(text: "Guarda ora", icon: "play.fill") {
+                        Task {
+                            if let m = try? await app.core.catalog.movie(sourceId: item.sourceId, id: item.itemId) { app.play(.movie(m)) }
+                        }
+                    }
+                    SecondaryButton(text: "Dettagli", icon: "info.circle.fill") {
+                        app.open(.movie(sourceId: item.sourceId, id: item.itemId))
+                    }
+                }
+            }
+            Spacer().frame(height: 14)
+            HStack(spacing: 6) {
+                ForEach(items.indices, id: \.self) { i in
+                    Capsule()
+                        .fill(i == index ? Theme.primary : Color.white.opacity(0.3))
+                        .frame(width: i == index ? 22 : 8, height: 4)
+                }
+            }
+        }
+        .padding(.horizontal, Theme.section)
+        .padding(.top, topInset + 64) // room for the top bar drawn over the hero
+        .padding(.bottom, 20)
+        .frame(maxWidth: wide ? 560 : .infinity, alignment: .leading)
+        // Grows with its text (large Dynamic Type) instead of cutting the title off at the top.
+        .frame(maxWidth: .infinity, minHeight: height + topInset, alignment: .bottomLeading)
+        .background {
             Color.clear
                 .overlay {
                     ArtImage(url: item.image, title: item.title, showInitials: false, maxPixel: 1400)
@@ -330,47 +391,7 @@ private struct HeroCarousel: View {
                 .clipped()
                 .overlay(Theme.scrimBottom)
                 .overlay { if wide { Theme.scrimLeft } }
-            VStack(alignment: .leading, spacing: 0) {
-                Text(item.title)
-                    .font(AppFont.displaySmall)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(2)
-                if let sub = item.subtitle, !sub.isEmpty {
-                    Spacer().frame(height: 6)
-                    Text(sub).font(AppFont.bodyMedium).foregroundStyle(Theme.textSecondary)
-                }
-                Spacer().frame(height: 16)
-                HStack(spacing: 10) {
-                    if item.isSeries {
-                        // A series has nothing to "play" as a whole: one button, straight to the episodes.
-                        PrimaryButton(text: "Episodi", icon: "list.bullet") {
-                            app.open(.series(sourceId: item.sourceId, id: item.itemId))
-                        }
-                    } else {
-                        PrimaryButton(text: "Guarda ora", icon: "play.fill") {
-                            Task {
-                                if let m = try? await app.core.catalog.movie(sourceId: item.sourceId, id: item.itemId) { app.play(.movie(m)) }
-                            }
-                        }
-                        SecondaryButton(text: "Dettagli", icon: "info.circle.fill") {
-                            app.open(.movie(sourceId: item.sourceId, id: item.itemId))
-                        }
-                    }
-                }
-                Spacer().frame(height: 14)
-                HStack(spacing: 6) {
-                    ForEach(items.indices, id: \.self) { i in
-                        Capsule()
-                            .fill(i == index ? Theme.primary : Color.white.opacity(0.3))
-                            .frame(width: i == index ? 22 : 8, height: 4)
-                    }
-                }
-            }
-            .padding(.horizontal, Theme.section)
-            .padding(.vertical, 20)
-            .frame(maxWidth: wide ? 560 : .infinity, alignment: .leading)
         }
-        .frame(height: (wide ? 420 : 480) + topInset)
         .clipped()
         .task(id: items.count) {
             while !Task.isCancelled && items.count > 1 {

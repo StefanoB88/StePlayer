@@ -110,6 +110,21 @@ final class AppModel {
     /// simulator screenshots without typing in the onboarding form.
     private func startDemoIfRequested() {
         let env = ProcessInfo.processInfo.environment
+        #if os(iOS)
+        // `STEPLAYER_DEMO_LANDSCAPE=1`: iPhone / iPad interface in landscape (layout checks without rotating by hand);
+        // `=0` on iPad: back to portrait (the simulator keeps the last orientation). Also without a demo list, for
+        // the onboarding screens of a fresh install.
+        if let value = env["STEPLAYER_DEMO_LANDSCAPE"] {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                if UIDevice.current.userInterfaceIdiom == .pad {
+                    AppDelegate.demoForcePadOrientation(landscape: value == "1")
+                } else if value == "1" {
+                    AppDelegate.lockOrientation(.allButUpsideDown, rotateTo: .landscapeRight)
+                }
+            }
+        }
+        #endif
         guard let url = env["STEPLAYER_DEMO_M3U"] else { return }
         // `STEPLAYER_DEMO_TAB=home|live|movies|series|downloads|search|settings` opens that screen.
         switch env["STEPLAYER_DEMO_TAB"] {
@@ -133,9 +148,15 @@ final class AppModel {
             let existing = (try? await core.sources.current()) ?? nil
             if existing == nil {
                 UserDefaults.standard.set(true, forKey: "legalAccepted")
-                try? await addSource(SourceInputM3u(name: "Lista di prova", listUrl: url, epgUrl: nil, userAgent: nil))
+                // `STEPLAYER_DEMO_XTREAM=1`: the demo URL is an Xtream server (user/password demo/demo): plots, cast,
+                // seasons and covers like a real provider, which a plain M3U list lacks.
+                if env["STEPLAYER_DEMO_XTREAM"] == "1" {
+                    try? await addSource(SourceInputXtream(name: "Server di prova", serverUrl: url, username: "demo", password: "demo", userAgent: nil))
+                } else {
+                    try? await addSource(SourceInputM3u(name: "Lista di prova", listUrl: url, epgUrl: nil, userAgent: nil))
+                }
             }
-            if let target = env["STEPLAYER_DEMO_OPEN"] { // movie | series | guide: open the first item's screen
+            if let target = env["STEPLAYER_DEMO_OPEN"] { // movie | series | guide | conntest | sendtv | addsource | editsource | subtitles | categories | pairing
                 while phase != .ready { try? await Task.sleep(nanoseconds: 300_000_000) }
                 try? await Task.sleep(nanoseconds: 800_000_000)
                 guard let id = active?.id else { return }
@@ -154,6 +175,11 @@ final class AppModel {
                     }
                 case "conntest":
                     path = [.connectionTest(sourceId: id)]
+                case "addsource": path = [.settings, .addSource]
+                case "editsource": path = [.settings, .editSource(id: id)]
+                case "subtitles": path = [.settings, .subtitles]
+                case "categories": path = [.settings, .categories(sourceId: id, type: "live")]
+                case "pairing": path = [.settings, .pairing]
                 case "sendtv":
                     path = [.sendToTv]
                 default:
@@ -231,6 +257,40 @@ final class AppModel {
         #if os(iOS)
         Task { await downloadEngine.restorePending() }
         #endif
+        startAccountRefresh()
+    }
+
+    // MARK: Account refresh (expiry date)
+
+    @ObservationIgnored private var accountTimer: Timer?
+    @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
+
+    /// Keeps the active list's account up to date (expiry date, max connections) while the app is visible: when it
+    /// comes back to the foreground and every 15 minutes. One login request, no catalog download; the expiry banner
+    /// and the reminders follow the sources flow by themselves.
+    private func startAccountRefresh() {
+        let nc = NotificationCenter.default
+        lifecycleObservers.append(nc.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.accountRefreshTick(); self?.armAccountTimer() }
+        })
+        lifecycleObservers.append(nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.accountTimer?.invalidate(); self?.accountTimer = nil }
+        })
+        armAccountTimer()
+    }
+
+    private func armAccountTimer() {
+        accountTimer?.invalidate()
+        let t = Timer(timeInterval: 15 * 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.accountRefreshTick() }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        accountTimer = t
+    }
+
+    private func accountRefreshTick() {
+        guard let id = active?.id else { return }
+        Task { try? await core.sync.refreshAccount(sourceId: id, minIntervalMs: 60_000) }
     }
 
     private func apply(syncState state: AnyObject) {
@@ -466,7 +526,13 @@ enum DemoHooks {
     #if DEBUG
     /// `STEPLAYER_DEMO_CATEGORY=<id>` (e.g. `__all__`): initial Live / Film / Serie category, to profile big lists.
     static let category = ProcessInfo.processInfo.environment["STEPLAYER_DEMO_CATEGORY"]
+    /// `STEPLAYER_DEMO_QUERY=<text>`: initial query of the Live / Film / Serie search bar and of the search screen.
+    static let query = ProcessInfo.processInfo.environment["STEPLAYER_DEMO_QUERY"]
+    /// `STEPLAYER_DEMO_ONBOARDING_ADD=1` (fresh install, no list): opens the onboarding "add list" form directly.
+    static let onboardingAdd = ProcessInfo.processInfo.environment["STEPLAYER_DEMO_ONBOARDING_ADD"] == "1"
     #else
     static let category: String? = nil
+    static let query: String? = nil
+    static let onboardingAdd = false
     #endif
 }

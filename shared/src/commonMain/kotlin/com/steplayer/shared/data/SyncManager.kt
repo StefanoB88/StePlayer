@@ -59,6 +59,35 @@ class SyncManager internal constructor(
     private val _state = MutableStateFlow<SyncState>(SyncState.Idle)
     val state: CFlow<SyncState> = _state.asStateFlow().wrap()
 
+    private val accountRefreshedAt = mutableMapOf<Long, Long>()
+
+    /**
+     * Re-reads the account of an "Accesso al server" list (expiry date, max connections, formats, server clock) with
+     * a single login request, without touching the catalog. Called when the app comes back to the foreground and
+     * every few minutes while it is open, so the expiry shown and the reminders follow renewals made meanwhile.
+     * Skipped for M3U lists, while a full sync is running (it updates the same data) and if done in the last
+     * [minIntervalMs]. Quiet: a failed refresh keeps the previous values.
+     */
+    @Throws(Throwable::class)
+    suspend fun refreshAccount(sourceId: Long, minIntervalMs: Long = 60_000L) {
+        val source = sources.byId(sourceId) ?: return
+        if (source.type != SourceType.XTREAM || mutex.isLocked) return
+        val now = nowMillis()
+        if (now - (accountRefreshedAt[sourceId] ?: 0L) < minIntervalMs) return
+        accountRefreshedAt[sourceId] = now
+        val creds = sources.xtreamCredentials(source) ?: return
+        val login = runCatchingCancellable { XtreamClient(http, creds, source.userAgent ?: defaultUserAgent).login() }.getOrNull() ?: return
+        withContext(Dispatchers.IO) {
+            q.updateSourceAccountInfo(
+                login.serverOffsetSec,
+                login.account.allowedFormats.joinToString(","),
+                login.account.expiresAt,
+                login.account.maxConnections?.toLong(),
+                source.id,
+            )
+        }
+    }
+
     /** Syncs only if the catalog is older than [maxAgeMs] (default 12h). Safe to call on every app start. */
     @Throws(Throwable::class)
     suspend fun syncIfStale(sourceId: Long, maxAgeMs: Long = 12 * 60 * 60 * 1000L) {

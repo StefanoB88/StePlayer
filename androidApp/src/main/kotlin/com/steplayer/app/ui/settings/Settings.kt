@@ -71,6 +71,7 @@ import com.steplayer.app.ui.appViewModel
 import com.steplayer.app.ui.components.AppTopBar
 import com.steplayer.app.ui.components.SecondaryButton
 import com.steplayer.app.ui.components.focusHighlight
+import com.steplayer.app.ui.components.tvFocusStop
 import com.steplayer.app.ui.nav.AppActions
 import com.steplayer.app.ui.onboarding.errorMessage
 import com.steplayer.app.ui.theme.Palette
@@ -303,7 +304,8 @@ private fun SettingRow(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 6.dp)
-            .then(if (onClick != null) Modifier.focusHighlight(shape, 1.01f).clip(shape).clickable(onClick = onClick) else Modifier)
+            // TV: info rows (account, legal texts) are focus stops too, so the remote scrolls through them.
+            .then(if (onClick != null) Modifier.focusHighlight(shape, 1.01f).clip(shape).clickable(onClick = onClick) else Modifier.tvFocusStop(shape))
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -399,7 +401,9 @@ fun CategoriesScreen(sourceId: Long, type: ContentType, actions: AppActions) {
     )
     Column(Modifier.fillMaxSize().background(Palette.Background)) {
         AppTopBar("${stringResource(R.string.settings_categories)} · $title", onBack = actions::back)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Same 760 dp column as the settings page: on a landscape tablet the switches stay next to their names.
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             items(cats, key = { it.id }) { c ->
                 val shape = RoundedCornerShape(12.dp)
                 Row(
@@ -419,6 +423,7 @@ fun CategoriesScreen(sourceId: Long, type: ContentType, actions: AppActions) {
                     )
                 }
             }
+        }
         }
     }
 }

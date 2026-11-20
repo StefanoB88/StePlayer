@@ -14,7 +14,7 @@ enum Legal {
 
 /// Welcome → add list (Android `OnboardingScreen` + `AddSourceScreen`).
 struct OnboardingFlow: View {
-    @State private var path: [Int] = []
+    @State private var path: [Int] = DemoHooks.onboardingAdd ? [1] : []
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -33,53 +33,58 @@ struct WelcomeView: View {
     let onContinue: () -> Void
     @AppStorage("legalAccepted") private var legalAccepted = false
     @State private var confirmed = false
+    /// Landscape (iPad, iPhone): a wider column wraps the legal text in fewer lines, so "Ho capito e accetto"
+    /// stays on the first screen instead of under the home indicator (iPad mini landscape is 744 pt tall).
+    @State private var landscape = false
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Theme.background.ignoresSafeArea()
-            // Soft accent glow (decorative).
+        ScrollView {
+            VStack(spacing: 0) {
+                BrandMark(size: 88)
+                Spacer().frame(height: 28)
+                Text("Benvenuto in StePlayer").font(AppFont.displaySmall).foregroundStyle(Theme.textPrimary)
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                Spacer().frame(height: 12)
+                Text("Lettore multimediale per le tue liste. Veloce, pulito e privato.")
+                    .font(AppFont.bodyLarge).foregroundStyle(Theme.textSecondary).multilineTextAlignment(.center)
+                Spacer().frame(height: 32)
+                InfoCard(symbol: "building.columns.fill", text: Legal.gate)
+                Spacer().frame(height: 12)
+                InfoCard(symbol: "lock.fill", text: Legal.privacy)
+                Spacer().frame(height: 20)
+                Button { confirmed.toggle() } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: confirmed ? "checkmark.square.fill" : "square")
+                            .font(.system(size: 22))
+                            .foregroundStyle(confirmed ? Theme.primary : Theme.textSecondary)
+                        Text(Legal.acceptance).font(AppFont.bodyMedium).foregroundStyle(Theme.textPrimary)
+                            .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 8).padding(.horizontal, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressStyle(radius: 14, scale: 1.02))
+                .accessibilityAddTraits(confirmed ? .isSelected : [])
+                Spacer().frame(height: 20)
+                PrimaryButton(text: "Ho capito e accetto", enabled: confirmed, fullWidth: true) {
+                    legalAccepted = true
+                    onContinue()
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: landscape && !Theme.isTV ? 760 : 560)
+            .frame(maxWidth: .infinity)
+        }
+        .onGeometryChange(for: Bool.self) { $0.size.width > $0.size.height } action: { landscape = $0 }
+        // Soft accent glow (decorative). A background, so its 420 pt frame never widens the page: as a ZStack sibling
+        // it made the scroll view 420 pt wide and cut the text and cards on 375–390 pt phones.
+        .background(alignment: .top) {
             RadialGradient(colors: [Theme.primary.opacity(0.35), .clear], center: .center, startRadius: 0, endRadius: 210)
                 .frame(width: 420, height: 420)
                 .allowsHitTesting(false)
-            ScrollView {
-                VStack(spacing: 0) {
-                    BrandMark(size: 88)
-                    Spacer().frame(height: 28)
-                    Text("Benvenuto in StePlayer").font(AppFont.displaySmall).foregroundStyle(Theme.textPrimary)
-                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                    Spacer().frame(height: 12)
-                    Text("Lettore multimediale per le tue liste. Veloce, pulito e privato.")
-                        .font(AppFont.bodyLarge).foregroundStyle(Theme.textSecondary).multilineTextAlignment(.center)
-                    Spacer().frame(height: 32)
-                    InfoCard(symbol: "building.columns.fill", text: Legal.gate)
-                    Spacer().frame(height: 12)
-                    InfoCard(symbol: "lock.fill", text: Legal.privacy)
-                    Spacer().frame(height: 20)
-                    Button { confirmed.toggle() } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: confirmed ? "checkmark.square.fill" : "square")
-                                .font(.system(size: 22))
-                                .foregroundStyle(confirmed ? Theme.primary : Theme.textSecondary)
-                            Text(Legal.acceptance).font(AppFont.bodyMedium).foregroundStyle(Theme.textPrimary)
-                                .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.vertical, 8).padding(.horizontal, 4)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PressStyle(radius: 14, scale: 1.02))
-                    .accessibilityAddTraits(confirmed ? .isSelected : [])
-                    Spacer().frame(height: 20)
-                    PrimaryButton(text: "Ho capito e accetto", enabled: confirmed, fullWidth: true) {
-                        legalAccepted = true
-                        onContinue()
-                    }
-                }
-                .padding(28)
-                .frame(maxWidth: 560)
-                .frame(maxWidth: .infinity)
-            }
         }
+        .background(Theme.background.ignoresSafeArea())
         .onAppear { confirmed = legalAccepted }
     }
 }

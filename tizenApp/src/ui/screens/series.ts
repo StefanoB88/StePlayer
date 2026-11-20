@@ -79,16 +79,16 @@ export function seriesScreen(sourceId: number, id: string): Screen {
     }
     col.appendChild(buttons);
     if (s.plot) col.appendChild(h('div', { class: 't-body-l', style: 'display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;width:92%;margin:8px 0 16px;color:rgba(245,247,250,0.9)' }, s.plot));
-    append(col, [metaLine('Cast', detail && detail.cast), metaLine('Regia', detail && detail.director)]);
+    append(col, [metaLine('Cast', detail && detail.cast, 2), metaLine('Regia', detail && detail.director, 1)]);
     content.appendChild(hero.el);
 
     let seasonRow: HTMLElement | null = null;
     if (seasons().length > 1) {
-      seasonRow = h('div', { class: 'chips', style: 'padding:32px 32px 16px' });
+      seasonRow = h('div', { class: 'chips', style: 'padding:32px 56px 16px' });
       for (const n of seasons()) seasonRow.appendChild(chip(`Stagione ${n}`, n === selectedSeason(), () => { season = n; render(); scope.focus(zones.seasons || null); }));
       content.appendChild(seasonRow);
     }
-    const list = h('div', { class: 'col', style: 'padding:16px 32px 64px' });
+    const list = h('div', { class: 'col', style: 'padding:16px 72px 64px' });
     if (loadingEpisodes) list.appendChild(h('div', { class: 'row', style: 'justify-content:center;padding:64px' }, h('div', { class: 'spinner' })));
     else if (!episodes().length) list.appendChild(h('div', { class: 't-body-l c2', style: 'padding:48px 16px' }, 'Nessun episodio disponibile'));
     else for (const ep of episodes()) list.appendChild(episodeRow(ep));
@@ -121,7 +121,7 @@ export function seriesScreen(sourceId: number, id: string): Screen {
     const frac = p && p.durationMs > 0 ? p.positionMs / p.durationMs : 0;
     const t = h('div', { style: 'position:relative;width:280px;height:158px;border-radius:20px;overflow:hidden;flex:0 0 auto;margin-right:24px' }, thumb,
       frac > 0 ? h('div', { style: 'position:absolute;left:12px;right:12px;bottom:12px' }, progressBar(frac, 'thin')) : null);
-    const row = h('div', { class: 'row s102', 'data-focus': true, style: 'background:var(--surface);border-radius:28px;padding:20px;margin:10px 0' }, t,
+    const row = h('div', { class: 'row s101', 'data-focus': true, style: 'background:var(--surface);border-radius:28px;padding:20px;margin:10px 0' }, t,
       h('div', { class: 'col grow' },
         h('div', { class: 't-title-s clamp2' }, `${ep.number}. ${ep.title}`),
         Format.minutes(ep.durationSec) ? h('div', { class: 't-body-s c2' }, Format.minutes(ep.durationSec) || '') : null,

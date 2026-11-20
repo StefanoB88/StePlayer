@@ -187,7 +187,8 @@ struct SegmentedTabs: View {
                 let sel = i == selected
                 Button { onSelect(i) } label: {
                     Text(options[i]).font(AppFont.labelLarge).foregroundStyle(sel ? Theme.onAccent : Theme.textSecondary)
-                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .padding(.horizontal, 10) // large text: never touching the capsule's rounded ends
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
                         .background { if sel { Capsule().fill(Theme.accentGradient) } }

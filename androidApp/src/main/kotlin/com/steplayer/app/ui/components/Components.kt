@@ -247,6 +247,7 @@ fun CategoryChips(
     selectedId: String?,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(horizontal = Dimens.Gutter),
 ) {
     val state = rememberLazyListState()
     LaunchedEffect(selectedId, items.size) {
@@ -256,7 +257,7 @@ fun CategoryChips(
     LazyRow(
         state = state,
         modifier = modifier,
-        contentPadding = PaddingValues(horizontal = Dimens.Gutter),
+        contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(items, key = { it.id }, contentType = { "chip" }) { item ->

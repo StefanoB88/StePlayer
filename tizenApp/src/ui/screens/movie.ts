@@ -58,8 +58,10 @@ export function movieScreen(sourceId: number, id: string): Screen {
       ]), 'notes'));
     }
     col.appendChild(buttons);
-    if (d.plot) col.appendChild(h('div', { class: 't-body-l', style: 'display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;width:92%;margin:8px 0 20px;color:rgba(245,247,250,0.9)' }, d.plot));
-    append(col, [metaLine('Genere', d.genre), metaLine('Regia', d.director), metaLine('Cast', d.cast)]);
+    // The page doesn't scroll: texts are cut so that everything ends above the bottom safe margin (the full
+    // texts are in "Trama completa").
+    if (d.plot) col.appendChild(h('div', { class: 't-body-l', style: 'display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;width:92%;margin:8px 0 12px;color:rgba(245,247,250,0.9)' }, d.plot));
+    append(col, [metaLine('Genere', d.genre, 1), metaLine('Regia', d.director, 1), metaLine('Cast', d.cast, 2)]);
     body.appendChild(hero.el);
     buttonsZone = new ElementsZone(buttons, { only: 'x' });
     buttonsZone.neighbors = { up: topBar.zone };

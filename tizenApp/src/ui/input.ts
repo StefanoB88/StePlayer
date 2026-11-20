@@ -1,24 +1,44 @@
 // Text fields on a TV: the field is a focusable box; OK opens the TV keyboard (real DOM focus on the <input>),
 // OK/Done/Back on the keyboard closes it and D-pad navigation resumes.
-import { h } from './dom.ts';
+import { h, icon } from './dom.ts';
 
-export interface FieldOpts { label: string; value?: string; type?: 'text' | 'password' | 'url'; placeholder?: string; onChange?: (v: string) => void }
+export interface FieldOpts {
+  label: string; value?: string; type?: 'text' | 'password' | 'url'; placeholder?: string; onChange?: (v: string) => void;
+  /** Search bar look (section search): magnifier, the label as placeholder, a × that empties it with the pointer. */
+  search?: boolean;
+}
 
 export interface Field { el: HTMLElement; input: HTMLInputElement; get value(): string; set value(v: string) }
 
 export function textField(o: FieldOpts): Field {
   const input = h('input', {
     type: o.type === 'password' ? 'password' : 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
-    placeholder: o.placeholder || '',
+    placeholder: o.placeholder || (o.search ? o.label : ''),
   });
   input.value = o.value || '';
-  input.addEventListener('input', () => o.onChange && o.onChange(input.value));
-  const el = h('label', { class: 'field s102', 'data-focus': true }, h('div', { class: 'flabel' }, o.label), input);
+  const clearBtn = o.search ? h('span', { class: 'fclear' }, icon('close', 40)) : null;
+  const sync = () => { if (clearBtn) clearBtn.style.display = input.value ? '' : 'none'; };
+  input.addEventListener('input', () => { sync(); if (o.onChange) o.onChange(input.value); });
+  const el = o.search
+    ? h('label', { class: 'field search s102', 'data-focus': true }, icon('search', 40), input, clearBtn)
+    : h('label', { class: 'field s102', 'data-focus': true }, h('div', { class: 'flabel' }, o.label), input);
   el.addEventListener('click', (e) => { e.preventDefault(); startEditing(input); });
+  if (clearBtn) {
+    // Pointer only (the remote clears with Back): empties the field without opening the keyboard.
+    clearBtn.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      input.value = ''; sync();
+      if (o.onChange) o.onChange('');
+    });
+    // No :focus-within on Chromium 53/56: the border turns gold while the TV keyboard is open.
+    input.addEventListener('focus', () => el.classList.add('editing'));
+    input.addEventListener('blur', () => el.classList.remove('editing'));
+  }
+  sync();
   return {
     el, input,
     get value() { return input.value; },
-    set value(v: string) { input.value = v; },
+    set value(v: string) { input.value = v; sync(); },
   };
 }
 

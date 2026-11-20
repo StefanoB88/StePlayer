@@ -28,7 +28,11 @@ import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -136,48 +140,48 @@ fun MovieDetailScreen(sourceId: Long, id: String, actions: AppActions) {
 
     val scroll = rememberScrollState()
     val heroHeight = if (wide) 380.dp else 300.dp
+    val compact = rememberDetailCompact()
     val collapse = rememberDetailCollapse()
+    val playFocus = remember { FocusRequester() }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         val d = detail
         when {
             notFound -> EmptyState(Icons.Rounded.Movie, stringResource(R.string.empty_movies))
             d == null -> LoadingBox()
-            else -> Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+            else -> {
                 val m = d.movie
-                BackdropHeader(d.backdrop ?: m.poster, m.name, heroHeight)
-                Row(
-                    Modifier.fillMaxWidth().offset(y = (-120).dp).padding(horizontal = 24.dp),
-                    verticalAlignment = Alignment.Bottom,
-                ) {
-                    if (wide) {
-                        ArtImage(m.poster, m.name, Modifier.width(180.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)))
-                        Spacer(Modifier.width(24.dp))
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(m.name, style = MaterialTheme.typography.headlineMedium, modifier = collapse.titleModifier)
-                        Spacer(Modifier.height(8.dp))
-                        val meta = listOfNotNull(
-                            m.year?.toString(),
-                            Format.minutes(d.durationSec?.toLong()),
-                            Format.rating(m.rating)?.let { "★ $it" },
-                            m.extension?.uppercase(),
-                        ).joinToString("   ·   ")
-                        if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodyMedium, color = Palette.TextSecondary)
-                    }
+                val p = progress
+                val canResume = p != null && p.positionMs > 30_000 && p.fraction < 0.95f
+                // TV: start on the play button (and again when it turns into "Riprendi"), so it is on screen and OK plays.
+                if (isTv) LaunchedEffect(canResume) { runCatching { playFocus.requestFocus() } }
+                val header: @Composable () -> Unit = {
+                    Text(m.name, style = MaterialTheme.typography.headlineMedium, modifier = collapse.titleModifier)
+                    Spacer(Modifier.height(8.dp))
+                    val meta = listOfNotNull(
+                        m.year?.toString(),
+                        Format.minutes(d.durationSec?.toLong()),
+                        Format.rating(m.rating)?.let { "★ $it" },
+                        m.extension?.uppercase(),
+                    ).joinToString("   ·   ")
+                    if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodyMedium, color = Palette.TextSecondary)
                 }
-                Column(Modifier.offset(y = (-100).dp).padding(horizontal = 24.dp)) {
-                    val p = progress
-                    val canResume = p != null && p.positionMs > 30_000 && p.fraction < 0.95f
+                val body: @Composable () -> Unit = {
                     if (canResume && p != null) {
                         ProgressBar(p.fraction, Modifier.fillMaxWidth(if (wide) 0.4f else 1f).padding(bottom = 12.dp))
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (canResume && p != null) {
-                            PrimaryButton(stringResource(R.string.resume_from, Format.duration(p.positionMs)), icon = Icons.Rounded.PlayArrow, onClick = { actions.playMovie(m, p.positionMs) })
+                            PrimaryButton(
+                                stringResource(R.string.resume_from, Format.duration(p.positionMs)), icon = Icons.Rounded.PlayArrow,
+                                onClick = { actions.playMovie(m, p.positionMs) }, modifier = Modifier.focusRequester(playFocus),
+                            )
                             SecondaryButton(stringResource(R.string.restart), icon = Icons.Rounded.Replay, onClick = { actions.playMovie(m, 0) })
                         } else {
-                            PrimaryButton(stringResource(R.string.play), icon = Icons.Rounded.PlayArrow, onClick = { actions.playMovie(m, 0) })
+                            PrimaryButton(
+                                stringResource(R.string.play), icon = Icons.Rounded.PlayArrow,
+                                onClick = { actions.playMovie(m, 0) }, modifier = Modifier.focusRequester(playFocus),
+                            )
                         }
                         if (!isTv) {
                             SecondaryButton(
@@ -198,14 +202,46 @@ fun MovieDetailScreen(sourceId: Long, id: String, actions: AppActions) {
                         )
                     }
                     Spacer(Modifier.height(20.dp))
-                    d.plot?.let {
-                        Text(it, style = MaterialTheme.typography.bodyLarge, color = Palette.TextPrimary.copy(alpha = 0.9f), modifier = Modifier.fillMaxWidth(if (wide) 0.7f else 1f))
-                        Spacer(Modifier.height(16.dp))
+                    // TV: the text has no buttons below it, so it is a focus stop of its own (the page scrolls to it).
+                    val hasText = listOf(d.plot, d.genre, d.director, d.cast).any { !it.isNullOrBlank() }
+                    Column(if (hasText) Modifier.tvReadable() else Modifier) {
+                        d.plot?.let {
+                            Text(it, style = MaterialTheme.typography.bodyLarge, color = Palette.TextPrimary.copy(alpha = 0.9f), modifier = Modifier.fillMaxWidth(if (wide && !compact) 0.7f else 1f))
+                            Spacer(Modifier.height(16.dp))
+                        }
+                        MetaLine(stringResource(R.string.genre_label), d.genre)
+                        MetaLine(stringResource(R.string.director_label), d.director)
+                        MetaLine(stringResource(R.string.cast_label), d.cast)
                     }
-                    MetaLine(stringResource(R.string.genre_label), d.genre)
-                    MetaLine(stringResource(R.string.director_label), d.director)
-                    MetaLine(stringResource(R.string.cast_label), d.cast)
-                    Spacer(Modifier.navigationBarsPadding())
+                }
+                if (compact) {
+                    DetailBackdropBackground(d.backdrop ?: m.poster, m.name)
+                    Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+                        CompactDetailHeader(m.poster, m.name) {
+                            header()
+                            Spacer(Modifier.height(16.dp))
+                            body()
+                        }
+                        Spacer(Modifier.navigationBarsPadding().height(24.dp))
+                    }
+                } else {
+                    Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+                        BackdropHeader(d.backdrop ?: m.poster, m.name, heroHeight)
+                        Row(
+                            Modifier.fillMaxWidth().offset(y = (-120).dp).padding(horizontal = 24.dp),
+                            verticalAlignment = Alignment.Bottom,
+                        ) {
+                            if (wide) {
+                                ArtImage(m.poster, m.name, Modifier.width(180.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)))
+                                Spacer(Modifier.width(24.dp))
+                            }
+                            Column(Modifier.weight(1f)) { header() }
+                        }
+                        Column(Modifier.offset(y = (-100).dp).padding(horizontal = 24.dp)) {
+                            body()
+                            Spacer(Modifier.navigationBarsPadding())
+                        }
+                    }
                 }
             }
         }

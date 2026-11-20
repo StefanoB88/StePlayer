@@ -13,8 +13,37 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        UIDevice.current.userInterfaceIdiom == .pad ? .all : Self.orientationLock
+        #if DEBUG
+        if let mask = Self.demoPadOrientation { return mask }
+        #endif
+        return UIDevice.current.userInterfaceIdiom == .pad ? .all : Self.orientationLock
     }
+
+    #if DEBUG
+    /// Development only: set by `STEPLAYER_DEMO_LANDSCAPE=1|0` on iPad (see `demoForcePadOrientation`).
+    static var demoPadOrientation: UIInterfaceOrientationMask?
+
+    /// Development only: turns an iPad simulator to landscape. `simctl` cannot rotate a simulator and the
+    /// iPhone path (`lockOrientation`) is phone-only, so the iPad window is restricted to landscape and
+    /// asked to rotate: layout checks of iPad landscape without touching the Simulator app.
+    /// iPadOS refuses programmatic rotation for an app that supports multitasking (UISceneErrorDomain 101,
+    /// "windowing mode does not allow…"): for the check, install a copy of the debug build with
+    /// `UIRequiresFullScreen = YES` added to its Info.plist (PlistBuddy + `codesign --force --sign -`).
+    /// `landscape: false` (`STEPLAYER_DEMO_LANDSCAPE=0`) turns it back to portrait.
+    @MainActor static func demoForcePadOrientation(landscape: Bool) {
+        guard UIDevice.current.userInterfaceIdiom == .pad, let scene = windowScene else { return }
+        let mask: UIInterfaceOrientationMask = landscape ? .landscapeRight : .portrait
+        demoPadOrientation = mask
+        var vc = scene.keyWindow?.rootViewController
+        while let current = vc {
+            current.setNeedsUpdateOfSupportedInterfaceOrientations()
+            vc = current.presentedViewController
+        }
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in
+            print("STEPLAYER_DEMO_LANDSCAPE (iPad): \(error.localizedDescription) (needs UIRequiresFullScreen, see above)")
+        }
+    }
+    #endif
 
     /// Background URLSession wake-up for finished downloads.
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,

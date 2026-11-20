@@ -3,6 +3,7 @@ package com.steplayer.app.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -15,6 +16,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.steplayer.app.ui.theme.Dimens
+import com.steplayer.app.ui.theme.LocalIsTv
 import com.steplayer.app.ui.theme.Palette
 
 /**
@@ -40,3 +42,11 @@ fun Modifier.focusHighlight(
         // Border node only while focused: thousands of list rows don't each carry an idle border.
         .then(if (focused) Modifier.border(2.5.dp, Palette.AccentGradient, shape) else Modifier)
 }
+
+/**
+ * TV: makes a non-interactive block (a paragraph, a card) a D-pad focus stop, so a scrolling list
+ * can be read to the end with the remote even where there is nothing to click. No-op on touch screens.
+ */
+@Composable
+fun Modifier.tvFocusStop(shape: Shape = RoundedCornerShape(12.dp)): Modifier =
+    if (!LocalIsTv.current) this else focusHighlight(shape, 1f).focusable()

@@ -152,7 +152,7 @@ export function iconButton(name: string, label: string, onClick: () => void, opt
 }
 
 export function chip(label: string, selected: boolean, onClick: () => void): HTMLElement {
-  const el = h('div', { class: `chip s104${selected ? ' selected' : ''}`, 'data-focus': true }, label);
+  const el = h('div', { class: `chip s104${selected ? ' selected' : ''}`, 'data-focus': true }, h('span', { class: 'clabel' }, label));
   el.addEventListener('click', onClick);
   return el;
 }

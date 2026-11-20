@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.steplayer.app.R
 import com.steplayer.app.ui.components.AppTopBar
 import com.steplayer.app.ui.components.focusHighlight
+import com.steplayer.app.ui.components.tvFocusStop
 import com.steplayer.app.ui.nav.AppActions
 import com.steplayer.app.ui.theme.Palette
 
@@ -88,7 +89,10 @@ fun LicensesScreen(actions: AppActions) {
                     }
                 }
                 if (showLgpl && lgpl != null) {
-                    item { Card { Text(lgpl, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp), color = Palette.TextSecondary) } }
+                    // One item per paragraph: lazily laid out, and on TV each one is a focus stop the remote can scroll to.
+                    items(lgpl.split(Regex("\n\\s*\n")).filter { it.isNotBlank() }) { para ->
+                        Card { Text(para.trim(), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp), color = Palette.TextSecondary) }
+                    }
                 }
                 items(COMPONENTS) { c ->
                     Card {
@@ -104,7 +108,7 @@ fun LicensesScreen(actions: AppActions) {
 @Composable
 private fun Card(content: @Composable () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Palette.Surface).padding(16.dp),
+        Modifier.fillMaxWidth().tvFocusStop(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Palette.Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) { content() }
 }

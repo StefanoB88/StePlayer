@@ -115,7 +115,7 @@ export function addSourceScreen(opts: { editId?: number; onSaved: (id: number, i
   const busy = h('div', { class: 'row hidden', style: 'justify-content:center;padding:24px' },
     h('div', { class: 'spinner small', style: 'margin-right:24px' }), h('span', { class: 'c2 t-body-m' }, 'Connessione in corso…'));
   const form = h('div', { class: 'col', style: 'width:1240px;margin:0 auto;padding:16px 40px 80px' });
-  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:128px;bottom:0;overflow:hidden' }, form);
+  const scroller = h('div', { style: 'position:absolute;left:0;right:0;top:152px;bottom:0;overflow:hidden' }, form);
   makeTrack(scroller);
 
   const render = () => {

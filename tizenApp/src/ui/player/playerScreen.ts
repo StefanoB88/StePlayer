@@ -764,12 +764,12 @@ export function playerScreen(initial: PlayRequest): Screen {
         bar.style.marginTop = '8px';
         text.appendChild(bar);
       }
-      return h('div', { class: `row s102${cur && cur.id === c.id ? ' current' : ''}`, style: 'margin:0 20px;padding:16px;border-radius:24px' }, logo, text);
+      return h('div', { class: `row s102${cur && cur.id === c.id ? ' current' : ''}`, style: 'margin:0 24px 0 56px;padding:16px;border-radius:24px' }, logo, text);
     },
     onActivate: (c) => { closeDrawer(); const cur = currentChannel(); if (!cur || cur.id !== c.id) apply(c); },
   });
-  drawer.append(h('div', { class: 't-title-l', style: 'padding:32px 40px 16px' }, 'Canali'), drawerList.el);
-  drawerList.el.style.cssText = 'position:absolute;left:0;right:0;top:112px;bottom:0;overflow:hidden';
+  drawer.append(h('div', { class: 't-title-l', style: 'padding:56px 40px 16px 72px' }, 'Canali'), drawerList.el);
+  drawerList.el.style.cssText = 'position:absolute;left:0;right:0;top:136px;bottom:0;overflow:hidden';
 
   let drawerEpg = new Map<string, EpgProgram>();
   async function loadDrawerEpg(list: Channel[]): Promise<void> {

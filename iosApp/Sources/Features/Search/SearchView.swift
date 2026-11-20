@@ -41,6 +41,7 @@ struct SearchView: View {
             await holdUntilCancelled([observeList(app.core.search.recentQueries, as: String.self) { recent = $0 }])
         }
         .onAppear {
+            if let q = DemoHooks.query, query.isEmpty { query = q }
             #if os(iOS)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { fieldFocused = true }
             #endif
@@ -115,19 +116,7 @@ struct SearchView: View {
         let terms = r.terms
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if let corrected = r.correctedQuery {
-                    HStack(spacing: 10) {
-                        Image(systemName: "wand.and.stars").font(.system(size: 16)).foregroundStyle(Theme.primary)
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text("Risultati per «\(corrected)»").font(AppFont.labelLarge).foregroundStyle(Theme.textPrimary)
-                            Text("Forse cercavi: \(corrected)").font(AppFont.bodySmall).foregroundStyle(Theme.textSecondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(12)
-                    .background(Theme.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, Theme.gutter).padding(.vertical, 4)
-                }
+                if let corrected = r.correctedQuery { CorrectedQueryBanner(corrected: corrected) }
                 if !r.topHits.isEmpty {
                     SectionHeader(title: "Migliori risultati")
                     hRow {
@@ -177,26 +166,7 @@ struct SearchView: View {
         if !hits.isEmpty {
             SectionHeader(title: title)
             ForEach(Array(hits.enumerated()), id: \.offset) { _, hit in
-                ResultRow(logo: hit.channel.logo, name: hit.channel.name, action: { openProgram(hit) }) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 8) {
-                            if hit.status == ProgramStatus.live { LiveBadge() }
-                            SearchHighlight.text(hit.program.title, terms: terms).font(AppFont.titleSmall).lineLimit(1)
-                        }
-                        let when = hit.status == ProgramStatus.live
-                            ? "\(Fmt.time(hit.program.startAt)) – \(Fmt.time(hit.program.endAt))"
-                            : Fmt.relativeDayTime(hit.program.startAt)
-                        let extra = hit.otherAirings > 0 ? "  ·  +\(hit.otherAirings) repliche" : ""
-                        Text("\(hit.channel.name)  ·  \(when)\(extra)").font(AppFont.bodySmall).foregroundStyle(Theme.textSecondary).lineLimit(1)
-                            .padding(.top, 2)
-                        if hit.status == ProgramStatus.live {
-                            FractionWidth(fraction: 0.9) {
-                                EpgProgressBar(startAt: hit.program.startAt, endAt: hit.program.endAt, height: 3)
-                            }
-                            .frame(height: 3).padding(.top, 6)
-                        }
-                    }
-                }
+                ProgramHitRow(hit: hit, terms: terms) { openProgram(hit) }
             }
         }
     }
@@ -269,7 +239,7 @@ private struct RecentSearches: View {
     }
 }
 
-private struct ResultRow<Content: View>: View {
+struct ResultRow<Content: View>: View {
     let logo: String?
     let name: String
     let action: () -> Void
@@ -348,5 +318,180 @@ enum SearchHighlight {
             i = j
         }
         return Text(attributed)
+    }
+}
+
+/// "Risultati per «x» · Forse cercavi: x" banner shown when the query was auto-corrected.
+struct CorrectedQueryBanner: View {
+    let corrected: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wand.and.stars").font(.system(size: 16)).foregroundStyle(Theme.primary)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Risultati per «\(corrected)»").font(AppFont.labelLarge).foregroundStyle(Theme.textPrimary)
+                Text("Forse cercavi: \(corrected)").font(AppFont.bodySmall).foregroundStyle(Theme.textSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Theme.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, Theme.gutter).padding(.vertical, 4)
+    }
+}
+
+/// A TV programme hit (live now, upcoming, replay): channel logo, highlighted title, channel and time.
+struct ProgramHitRow: View {
+    let hit: SearchHitProgramHit
+    let terms: [String]
+    let action: () -> Void
+
+    var body: some View {
+        ResultRow(logo: hit.channel.logo, name: hit.channel.name, action: action) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    if hit.status == ProgramStatus.live { LiveBadge() }
+                    SearchHighlight.text(hit.program.title, terms: terms).font(AppFont.titleSmall).lineLimit(1)
+                }
+                let when = hit.status == ProgramStatus.live
+                    ? "\(Fmt.time(hit.program.startAt)) – \(Fmt.time(hit.program.endAt))"
+                    : Fmt.relativeDayTime(hit.program.startAt)
+                let extra = hit.otherAirings > 0 ? "  ·  +\(hit.otherAirings) repliche" : ""
+                Text("\(hit.channel.name)  ·  \(when)\(extra)").font(AppFont.bodySmall).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                    .padding(.top, 2)
+                if hit.status == ProgramStatus.live {
+                    FractionWidth(fraction: 0.9) {
+                        EpgProgressBar(startAt: hit.program.startAt, endAt: hit.program.endAt, height: 3)
+                    }
+                    .frame(height: 3).padding(.top, 6)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Per-section search (Live / Film / Serie)
+
+/// Which part of the smart search results a section shows.
+enum SearchScope {
+    case live, movies, series
+
+    var prompt: String {
+        switch self {
+        case .live: return "Cerca canali"
+        case .movies: return "Cerca film"
+        case .series: return "Cerca serie"
+        }
+    }
+
+    func isEmpty(_ r: SmartSearchResults) -> Bool {
+        switch self {
+        case .live: return r.channels.isEmpty && r.liveNow.isEmpty
+        case .movies: return r.movies.isEmpty
+        case .series: return r.series.isEmpty
+        }
+    }
+}
+
+/// Query and debounced results of one section's search bar (same shared smart search as the global screen).
+@MainActor
+@Observable
+final class SectionSearchModel {
+    var query = DemoHooks.query ?? ""
+    private(set) var results: SmartSearchResults?
+    private(set) var loading = false
+
+    /// While the query is not empty the section shows the search instead of its list.
+    var isActive: Bool { !query.trimmed.isEmpty }
+
+    /// Run from `.task(id: query)`: 300 ms debounce, from 2 characters. The previous results stay on screen
+    /// while the next ones load (no blink at every key).
+    func run(_ app: AppModel) async {
+        let q = query.trimmed
+        guard q.count >= 2, app.activeId >= 0 else { results = nil; loading = false; return }
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
+        loading = true
+        let r = try? await app.core.search.search(sourceId: app.activeId, query: q)
+        guard !Task.isCancelled else { return }
+        results = r
+        loading = false
+    }
+
+    func clear() {
+        query = ""
+        results = nil
+        loading = false
+    }
+
+    /// Same as the global search: the query goes into the recent searches when a result is opened.
+    func remember(_ app: AppModel) {
+        let t = query.trimmed
+        guard t.count >= 2 else { return }
+        Task { try? await app.core.search.rememberQuery(query: t) }
+    }
+}
+
+/// Compact search field of a section header: searches only that section.
+struct SectionSearchField: View {
+    let prompt: String
+    @Binding var text: String
+    var onSubmit: () -> Void = {}
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: Theme.isTV ? 26 : 15, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityHidden(true)
+            TextField("", text: $text, prompt: Text(prompt).foregroundStyle(Theme.textSecondary))
+                .font(AppFont.bodyLarge)
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(1)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .onSubmit(onSubmit)
+                .accessibilityLabel(prompt)
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                #endif
+            if !text.isEmpty {
+                Button { text = ""; focused = false } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: Theme.isTV ? 28 : 17))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: Theme.isTV ? 56 : 32, height: Theme.isTV ? 56 : 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressStyle(radius: 28, scale: 1.1, circle: true))
+                .accessibilityLabel("Cancella")
+            }
+        }
+        .padding(.leading, Theme.isTV ? 22 : 14).padding(.trailing, 6)
+        .frame(minHeight: Theme.isTV ? 66 : 40)
+        .background(Theme.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(focused ? Theme.primary : Theme.outline, lineWidth: focused ? 2 : 1))
+    }
+}
+
+/// What a section shows while its search is active: hint, loading, "no results" or the given results.
+struct SectionSearchState<Results: View>: View {
+    let scope: SearchScope
+    let model: SectionSearchModel
+    @ViewBuilder var results: (SmartSearchResults) -> Results
+
+    var body: some View {
+        let q = model.query.trimmed
+        if q.count < 2 {
+            EmptyState(symbol: "magnifyingglass", text: "Digita almeno 2 caratteri")
+        } else if let r = model.results, !scope.isEmpty(r) {
+            results(r)
+        } else if model.loading || model.results == nil {
+            LoadingBox()
+        } else {
+            EmptyState(symbol: "magnifyingglass", text: "Nessun risultato per «\(q)». Prova con un'altra parola o controlla l'ortografia.")
+        }
     }
 }
