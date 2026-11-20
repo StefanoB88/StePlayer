@@ -58,7 +58,7 @@ async function shot(name) { const p = join(tmp, `${name}.png`); await page.scree
 
 // First launch: legal notice, then "Accesso al server" to the local dev server (fictional catalogue).
 await sleep(2500);
-await keys('Enter'); await keys('ArrowDown'); await keys('Enter'); await sleep(1500);
+await keys('Enter'); await keys('ArrowDown'); await keys('ArrowRight'); await keys('Enter'); await sleep(1500); // tick, then "Ho capito e accetto" (right of "Non accetto")
 await keys('ArrowUp', 3); await keys('ArrowRight'); await keys('Enter'); await sleep(800);
 await keys('ArrowDown', 3);
 await type(URL.replace(/\/$/, ''));

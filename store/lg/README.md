@@ -11,10 +11,13 @@ L'app per TV LG usa lo stesso codice dell'app Samsung (`tizenApp/`): la piattafo
 | `self-checklist.md` | Risultati della Self-Checklist 5.0, da copiare nel modello Excel di LG |
 | `ux-scenario.md` | Documento "UX scenario" richiesto dal Seller Lounge |
 | `test-information.md` | Testo per il campo dei commenti per il QA |
+| `images/screenshot-1…5-1920x1080.jpg` | Screenshot per lo store, JPG 1920×1080 (170–275 KB): Home, Live, Guida TV, Film, Serie |
+| `images/icon-400x400.png` | Icona quadrata per lo store, PNG 400×400 |
 | `tizenApp/webos/icon.png` (80×80), `largeIcon.png` (130×130) | Icone dell'app, già incluse nel pacchetto |
-| `store/samsung/screenshot-*-1920x1080.jpg` | Screenshot 1920×1080: stessa interfaccia, dati inventati |
 
-Le icone e lo splash si rigenerano con `node scripts/brand/make-brand.mjs webos`.
+Gli screenshot vengono dalla build LG con il catalogo di prova: nomi e immagini inventati, nessun titolo o logo reale.
+Si rigenerano con `tizenApp/dev/lg-store-assets.mjs`; le istruzioni sono in testa al file. Icone e splash si
+rigenerano con `node scripts/brand/make-brand.mjs webos`.
 
 ## Differenze rispetto a Samsung
 - **Player:** si usa il `<video>` di sistema di webOS, con decodifica hardware di HLS, MPEG-TS e MP4. Tracce audio e
