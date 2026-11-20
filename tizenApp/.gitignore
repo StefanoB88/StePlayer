@@ -7,4 +7,5 @@ dist/
 dev/media/
 dev/shots/
 build-webos/
+build-webos-720/
 *.ipk

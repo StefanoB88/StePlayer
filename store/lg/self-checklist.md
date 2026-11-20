@@ -1,6 +1,6 @@
 # StePlayer — LG webOS TV Self-Checklist (v5.0, 2022-09-27)
 
-App ID `com.steplayer.app`, version 1.0.0, webOS TV 4.0 and later (1920×1080). Copy each result into the official
+App ID `com.steplayer.app`, version 1.0.0, webOS TV 4.0 and later. Two packages: 1920×1080 (UHD models) and 1280×720 (FHD models). Copy each result into the official
 Excel template from the Seller Lounge.
 
 StePlayer is a neutral media player. It ships with no content and plays only the M3U list or personal server that the
@@ -18,7 +18,7 @@ Every item must end as Pass or N/A. Fill in "Fail" only if the TV test fails, an
 | 2 | Main page | Pass | Emulated, TV | Splash `splash.png`, then the UI. All buttons, text and logos sit within the overscan frame (≥ 60 px from the edges). |
 | 3 | Reboot | Pass | TV | Lists and settings are stored on the TV (IndexedDB). After a power or AC cycle the app opens on Home; playback starts again from the content page. |
 | 4 | Advertisement | N/A | — | No advertising. |
-| 5 | Resolution | Pass | Emulated, TV | Fixed 1920×1080 layout, 16:9. |
+| 5 | Resolution | Pass | Emulated, TV | 16:9 layout. UHD package at 1920×1080; FHD package at 1280×720, with the same UI scaled to 2/3. |
 | 6 | Correct text | Pass | Emulated | Long titles end with an ellipsis. Long descriptions open in a scrollable dialog with a scroll bar. |
 | 7 | Mouse over / focus | Pass | Emulated | Idle, focused (orange ring and scale) and selected (filled) states are distinct. Pointer hover and remote focus use the same style. |
 | 8 | Flickering | Pass | TV | No flicker when opening or playing content. |

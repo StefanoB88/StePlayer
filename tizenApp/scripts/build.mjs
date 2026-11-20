@@ -3,7 +3,9 @@
 //   Samsung (default): build/        Chromium 56 = Tizen 4.0 (2018 models), static/ (config.xml, index.html, icon)
 //   LG (--webos):      build-webos/  Chromium 53 = webOS 4.0 (2018 models), static/styles.css + webos/ (appinfo.json,
 //                                    index.html, icons, splash)
-// Usage: node scripts/build.mjs [--webos] [--watch] [--dev]
+//   LG Full HD (--webos --r720): build-webos-720/, same app for TVs whose graphics plane is 1280×720: appinfo
+//                                    "resolution": "1280x720" and <html class="r720"> (layout scaled to 2/3)
+// Usage: node scripts/build.mjs [--webos [--r720]] [--watch] [--dev]
 import { build, context } from 'esbuild';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -11,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const webos = process.argv.includes('--webos');
-const out = join(root, webos ? 'build-webos' : 'build');
+const r720 = webos && process.argv.includes('--r720');
+const out = join(root, webos ? (r720 ? 'build-webos-720' : 'build-webos') : 'build');
 const watch = process.argv.includes('--watch');
 const dev = process.argv.includes('--dev') || watch;
 
@@ -44,6 +47,14 @@ function copyStatic() {
   // webOS: same styles; its own manifest, page (no Samsung webapis.js) and images.
   cpSync(join(root, 'static/styles.css'), join(out, 'styles.css'));
   cpSync(join(root, 'webos'), out, { recursive: true });
+  if (r720) {
+    const info = JSON.parse(readFileSync(join(out, 'appinfo.json'), 'utf8'));
+    info.resolution = '1280x720';
+    writeFileSync(join(out, 'appinfo.json'), `${JSON.stringify(info, null, 2)}\n`);
+    const page = join(out, 'index.html');
+    writeFileSync(page, readFileSync(page, 'utf8').replace('<html lang="it">', '<html lang="it" class="r720">')
+      .replace('width=1920, height=1080', 'width=1280, height=720'));
+  }
 }
 
 generateIcons();

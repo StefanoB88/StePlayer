@@ -28,9 +28,12 @@ Lo stesso codice gira sulle TV LG con webOS 4.0 e successivi: la piattaforma vie
 `com.steplayer.app`; manifest, pagina, icone e splash sono in `webos/`.
 ```sh
 npm run build:webos      # build-webos/ (bundle per Chromium 53)
-npm run package:webos    # dist/com.steplayer.app_<versione>_all.ipk
-scripts/webos.sh         # crea il pacchetto, lo installa sulla TV in modalità sviluppatore e lo avvia
+npm run package:webos    # due pacchetti: dist/webos-uhd/ (1920×1080) e dist/webos-fhd/ (1280×720)
+scripts/webos.sh         # crea i pacchetti, installa quello UHD sulla TV in modalità sviluppatore e lo avvia
+scripts/webos.sh tv fhd  # installa quello per le TV Full HD
 ```
+LG vuole due pacchetti: le TV Full HD hanno la grafica delle app a 1280×720. Il pacchetto `webos-fhd` è la stessa
+app con `"resolution": "1280x720"` e l'interfaccia ridotta a 2/3 (`<html class="r720">`).
 Su LG il player usa il `<video>` di sistema, che decodifica in hardware. Sono supportati il puntatore, l'OK e la
 rotellina del Magic Remote. Il tasto Indietro (461), sulla Home, torna al launcher. Materiali per il Seller Lounge e
 checklist: `../store/lg/`.

@@ -7,7 +7,8 @@ L'app per TV LG usa lo stesso codice dell'app Samsung (`tizenApp/`): la piattafo
 ## File
 | File | A cosa serve |
 | --- | --- |
-| `tizenApp/dist/com.steplayer.app_1.0.0_all.ipk` | Pacchetto da caricare nel Seller Lounge (`npm run package:webos`) |
+| `tizenApp/dist/webos-uhd/com.steplayer.app_1.0.0_all.ipk` | Pacchetto per le TV Ultra HD, grafica a 1920×1080 (`npm run package:webos`) |
+| `tizenApp/dist/webos-fhd/com.steplayer.app_1.0.0_all.ipk` | Pacchetto per le TV Full HD, grafica a 1280×720: stessa app, interfaccia ridotta a 2/3 |
 | `self-checklist.md` | Risultati della Self-Checklist 5.0, da copiare nel modello Excel di LG |
 | `ux-scenario.md` | Documento "UX scenario" richiesto dal Seller Lounge |
 | `test-information.md` | Testo per il campo dei commenti per il QA |
@@ -19,10 +20,15 @@ Gli screenshot vengono dalla build LG con il catalogo di prova: nomi e immagini 
 Si rigenerano con `tizenApp/dev/lg-store-assets.mjs`; le istruzioni sono in testa al file. Icone e splash si
 rigenerano con `node scripts/brand/make-brand.mjs webos`.
 
+## Due pacchetti (UHD e FHD)
+Nel Seller Lounge, nella scheda File Upload, si caricano entrambi i pacchetti: quello a 1920×1080 vale per i modelli
+UHD, quello a 1280×720 per i modelli FHD. Senza il secondo, l'app non viene pubblicata sulle TV Full HD.
+
 ## Differenze rispetto a Samsung
 - **Player:** si usa il `<video>` di sistema di webOS, con decodifica hardware di HLS, MPEG-TS e MP4. Tracce audio e
   sottotitoli si possono scegliere quando il flusso li espone.
-- **Magic Remote:** il puntatore evidenzia l'elemento sotto di sé, l'OK lo attiva e la rotellina scorre liste e pagine.
+- **Magic Remote:** il puntatore resta visibile (su Samsung il cursore è nascosto), evidenzia l'elemento sotto di sé,
+  l'OK lo attiva e la rotellina scorre liste e pagine.
 - **Tasto Indietro (461):** sulla Home torna al launcher, come prevede LG.
 - **IP della TV** per l'abbinamento col telefono: si legge con il servizio Luna `com.palm.connectionmanager/getStatus`.
   Per questo in `appinfo.json` c'è `requiredACG: ["network.query"]`.

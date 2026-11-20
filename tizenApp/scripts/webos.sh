@@ -4,12 +4,13 @@
 # turn on Dev Mode Status and Key Server, then register the TV:
 #   npx ares-setup-device --add tv --info "{'host':'<TV IP>','port':'9922','username':'prisoner'}"
 #   npx ares-novacom --device tv --getkey      (passphrase shown in the Developer Mode app)
-# Usage: scripts/webos.sh [device name, default "tv"]
+# Usage: scripts/webos.sh [device name, default "tv"] [uhd|fhd, default uhd: fhd = TVs with a 1280×720 graphics plane]
 set -e
 DEVICE="${1:-tv}"
+RES="${2:-uhd}"
 cd "$(dirname "$0")/.."
 npm run package:webos
-IPK="$(ls -t dist/com.steplayer.app_*_all.ipk | head -1)"
+IPK="$(ls -t dist/webos-$RES/com.steplayer.app_*_all.ipk | head -1)"
 npx ares-install --device "$DEVICE" "$IPK"
 npx ares-launch --device "$DEVICE" com.steplayer.app
 echo "Installed $IPK on $DEVICE"

@@ -35,9 +35,20 @@ function requestWebOSIp(): void {
   } catch { /* no Luna access */ }
 }
 
+/**
+ * Screen pixels per layout pixel. The UI is laid out at 1920×1080; the LG package for Full HD TVs (graphics plane
+ * 1280×720, `<html class="r720">`) shows it scaled to 2/3. Layout code works in layout pixels: screen rects
+ * (getBoundingClientRect) are divided by this when mixed with offsets and sizes.
+ */
+export function uiScale(): number {
+  return document.documentElement.classList.contains('r720') ? 1280 / 1920 : 1;
+}
+
 /** Called once at start-up. */
 export function initPlatform(): void {
-  if (isWebOS) requestWebOSIp();
+  if (!isWebOS) return;
+  document.documentElement.classList.add('webos'); // visible Magic Remote pointer (styles.css)
+  requestWebOSIp();
 }
 
 /** The TV's LAN address, or null when unknown. */

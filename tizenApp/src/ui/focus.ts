@@ -2,6 +2,7 @@
 // button bar...). Arrows move inside the focused zone; at its edge the scope moves to the nearest zone in
 // that direction (or to an explicit neighbour). Big lists are virtualised: only visible rows exist in the DOM.
 import type { KeyPress } from './keys.ts';
+import { uiScale } from './platform.ts';
 
 export type Dir = 'up' | 'down' | 'left' | 'right';
 
@@ -218,15 +219,17 @@ export function ensureVisible(child: HTMLElement, container: HTMLElement, axis: 
     else if (start + size + pad > cur + view) scrollTo(container, axis, start + size + pad - view);
     return;
   }
+  // Screen rects are scaled on 1280×720 TVs (uiScale): convert them back to layout pixels.
+  const k = uiScale();
   const c = container.getBoundingClientRect();
   const r = child.getBoundingClientRect();
   const cur = getScroll(container, axis);
   if (axis === 'y') {
-    if (r.top < c.top + pad) scrollTo(container, 'y', cur - (c.top + pad - r.top));
-    else if (r.bottom > c.bottom - pad) scrollTo(container, 'y', cur + (r.bottom - (c.bottom - pad)));
+    if (r.top / k < c.top / k + pad) scrollTo(container, 'y', cur - (c.top / k + pad - r.top / k));
+    else if (r.bottom / k > c.bottom / k - pad) scrollTo(container, 'y', cur + (r.bottom / k - (c.bottom / k - pad)));
   } else {
-    if (r.left < c.left + pad) scrollTo(container, 'x', cur - (c.left + pad - r.left));
-    else if (r.right > c.right - pad) scrollTo(container, 'x', cur + (r.right - (c.right - pad)));
+    if (r.left / k < c.left / k + pad) scrollTo(container, 'x', cur - (c.left / k + pad - r.left / k));
+    else if (r.right / k > c.right / k - pad) scrollTo(container, 'x', cur + (r.right / k - (c.right / k - pad)));
   }
 }
 
@@ -430,7 +433,7 @@ export class VirtualList<T> implements Zone {
     if (from && this.items.length) {
       // Row whose vertical centre is closest to the previous focus.
       const r = this.el.getBoundingClientRect();
-      const y = from.top + from.height / 2 - r.top + this.scrollY - (this.o.padTop || 0);
+      const y = (from.top + from.height / 2 - r.top) / uiScale() + this.scrollY - (this.o.padTop || 0);
       const idx = Math.floor(y / this.stride);
       const visibleFirst = Math.floor(this.scrollY / this.stride);
       const visibleLast = Math.floor((this.scrollY + this.el.clientHeight) / this.stride) - 1;
@@ -605,11 +608,12 @@ export class VirtualGrid<T> implements Zone {
     this.hasFocus = true;
     if (from && this.items.length) {
       const r = this.el.getBoundingClientRect();
-      const col = Math.max(0, Math.min(this.cols - 1, Math.floor((from.left + from.width / 2 - r.left - this.o.padX) / (this.o.cellWidth + this.o.gapX))));
+      const k = uiScale(); // screen rects → layout pixels on 1280×720 TVs
+      const col = Math.max(0, Math.min(this.cols - 1, Math.floor(((from.left + from.width / 2 - r.left) / k - this.o.padX) / (this.o.cellWidth + this.o.gapX))));
       const firstRow = Math.ceil((this.scrollY - this.o.padTop) / this.rowStride);
       if (dir === 'down' || dir === null) this.index = Math.min(this.items.length - 1, Math.max(0, firstRow) * this.cols + col);
       else if (dir === 'left' || dir === 'right') {
-        const y = from.top + from.height / 2 - r.top + this.scrollY - this.o.padTop;
+        const y = (from.top + from.height / 2 - r.top) / k + this.scrollY - this.o.padTop;
         const row = Math.max(0, Math.floor(y / this.rowStride));
         this.index = Math.min(this.items.length - 1, row * this.cols + (dir === 'right' ? 0 : this.cols - 1));
       }

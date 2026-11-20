@@ -7,7 +7,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:webos": "node scripts/build.mjs --webos",
-    "package:webos": "node scripts/build.mjs --webos && ares-package build-webos -o dist --no-minify",
+    "build:webos720": "node scripts/build.mjs --webos --r720",
+    "package:webos": "node scripts/build.mjs --webos && node scripts/build.mjs --webos --r720 && ares-package build-webos -o dist/webos-uhd --no-minify && ares-package build-webos-720 -o dist/webos-fhd --no-minify",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/**/*.test.ts\"",

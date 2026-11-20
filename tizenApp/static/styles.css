@@ -284,3 +284,12 @@ body.video-mode #avplayer { display: block; }
 /* Offline banner (Samsung QA: network errors must be handled visibly) */
 .net-banner { position: absolute; left: 50%; top: 32px; -webkit-transform: translateX(-50%); transform: translateX(-50%); z-index: 2000;
   background: #3A1520; border: 2px solid var(--live); color: var(--text); border-radius: 999px; padding: 20px 40px; font-size: 28px; line-height: 36px; }
+
+/* LG Full HD TVs (1280×720 graphics plane, package built with --r720): the 1920×1080 layout scaled to 2/3. Fixed
+   overlays are children of body, so they scale with it. */
+html.r720 { width: 1280px; height: 720px; overflow: hidden; }
+html.r720 body { width: 1920px; height: 1080px; transform: scale(0.6666667); transform-origin: 0 0; }
+
+/* LG: the Magic Remote pointer must stay visible (Samsung TVs have no pointer, hence cursor:none above). */
+html.webos, html.webos body { cursor: default; }
+html.webos [data-focus], html.webos [data-vindex] { cursor: pointer; }
